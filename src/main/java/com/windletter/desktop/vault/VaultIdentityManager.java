@@ -6,15 +6,10 @@ import com.windletter.crypto.api.X25519PrivateKeyHandle;
 import com.windletter.crypto.bc.BouncyCastleEd25519Crypto;
 import com.windletter.crypto.bc.BouncyCastleMLKem768Crypto;
 import com.windletter.crypto.bc.BouncyCastleX25519Crypto;
-import com.windletter.protocol.key.Ed25519KeyId;
-import com.windletter.protocol.key.MLKem768KeyId;
-import com.windletter.protocol.key.X25519KeyId;
-
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -143,6 +138,52 @@ final class VaultIdentityManager {
         }
     }
 
+    void updateMetadataAndSave(
+        VaultSession session,
+        UUID identityId,
+        String displayName,
+        String note
+    ) throws VaultWriteException {
+        Objects.requireNonNull(session, "session");
+        Objects.requireNonNull(identityId, "identityId");
+        String checkedDisplayName = VaultModelChecks.displayName(
+            displayName,
+            "displayName"
+        );
+        String checkedNote = VaultModelChecks.note(note, "note");
+
+        VaultPayload source = session.payload();
+        List<VaultIdentity> identities = new ArrayList<>();
+        boolean found = false;
+        try {
+            for (VaultIdentity identity : source.identities()) {
+                if (identity.identityId().equals(identityId)) {
+                    found = true;
+                    identities.add(updatedIdentity(
+                        identity,
+                        checkedDisplayName,
+                        checkedNote,
+                        source.updatedAt()
+                    ));
+                } else {
+                    identities.add(VaultPayloadCopies.identity(identity));
+                }
+            }
+            if (!found) {
+                throw new IllegalArgumentException("identityId does not exist");
+            }
+            VaultPayload candidate = buildCandidate(
+                source,
+                identities,
+                source.settings()
+            );
+            identities = List.of();
+            commitCandidate(session, candidate);
+        } finally {
+            identities.forEach(VaultIdentity::close);
+        }
+    }
+
     private VaultIdentity generateIdentity(
         String displayName,
         String note
@@ -179,7 +220,7 @@ final class VaultIdentityManager {
         try {
             privateKey = x25519.exportPrivateKey(handle);
             publicKey = handle.publicKey();
-            kid = decodeKid(X25519KeyId.derive(publicKey));
+            kid = VaultKeyIds.derive(VaultKeyAlgorithm.X25519, publicKey);
             return new VaultPrivateKey(
                 VaultKeyAlgorithm.X25519,
                 kid,
@@ -200,7 +241,7 @@ final class VaultIdentityManager {
         try {
             privateKey = mlKem768.exportPrivateKey(handle);
             publicKey = handle.publicKey();
-            kid = decodeKid(MLKem768KeyId.derive(publicKey));
+            kid = VaultKeyIds.derive(VaultKeyAlgorithm.ML_KEM_768, publicKey);
             return new VaultPrivateKey(
                 VaultKeyAlgorithm.ML_KEM_768,
                 kid,
@@ -221,7 +262,7 @@ final class VaultIdentityManager {
         try {
             privateKey = ed25519.exportPrivateKey(handle);
             publicKey = handle.publicKey();
-            kid = decodeKid(Ed25519KeyId.derive(publicKey));
+            kid = VaultKeyIds.derive(VaultKeyAlgorithm.ED25519, publicKey);
             return new VaultPrivateKey(
                 VaultKeyAlgorithm.ED25519,
                 kid,
@@ -246,7 +287,7 @@ final class VaultIdentityManager {
             VaultPayload candidate = new VaultPayload(
                 vaultId,
                 source.createdAt(),
-                clock.instant(),
+                updatedAt(source.updatedAt()),
                 identities,
                 VaultPayloadCopies.contacts(source.contacts()),
                 settings
@@ -258,6 +299,36 @@ final class VaultIdentityManager {
             if (!success) {
                 identities.forEach(VaultIdentity::close);
             }
+        }
+    }
+
+    private Instant updatedAt(Instant current) {
+        Instant now = clock.instant();
+        return now.isBefore(current) ? current : now;
+    }
+
+    private VaultIdentity updatedIdentity(
+        VaultIdentity source,
+        String displayName,
+        String note,
+        Instant payloadUpdatedAt
+    ) {
+        List<VaultPrivateKey> keys = VaultPayloadCopies.privateKeys(
+            source.keys()
+        );
+        try {
+            return new VaultIdentity(
+                source.identityId(),
+                displayName,
+                note,
+                source.origin(),
+                source.createdAt(),
+                updatedAt(payloadUpdatedAt),
+                keys
+            );
+        } catch (RuntimeException failure) {
+            keys.forEach(VaultPrivateKey::close);
+            throw failure;
         }
     }
 
@@ -274,10 +345,6 @@ final class VaultIdentityManager {
                 candidate.close();
             }
         }
-    }
-
-    private static byte[] decodeKid(String value) {
-        return Base64.getUrlDecoder().decode(value);
     }
 
     private static void clear(byte[] value) {

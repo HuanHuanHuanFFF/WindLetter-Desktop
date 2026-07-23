@@ -29,11 +29,11 @@
 - 原子文件保存与备份见第 5 节；
 - 创建、解锁、保存、锁定与恢复服务见第 6 节。
 
-阶段 2 当前仍未实现：
+该初始闭环当时仍未实现、后续已有进展：
 
-- 最终用户数据目录策略；
-- 尚未生成、导出或落盘任何真实身份私钥；
-- 尚未实现身份、联系人、自动锁定计时器或 JavaFX 界面。
+- 真实身份生成与加密落盘见第 7 节；
+- 公开身份与联系人见第 8 节；
+- 最终用户数据目录、自动锁定计时器和 JavaFX 界面仍未实现。
 
 ## 2. 已完成闭环：Argon2id 目标机校准
 
@@ -200,9 +200,42 @@
 - 删除最后一个身份后身份列表和默认身份均为空，重启后保持；
 - 完整 `verify` 通过：10 个测试套件、32 个测试，0 failure、0 error、0 skipped。
 
-这是阶段 2 首次真实私钥持久化证据：测试只在 JUnit 临时目录落盘，物理文件始终是 Argon2id + AES-256-GCM 认证加密 Envelope。身份私钥导入、公开导出和名称/备注编辑尚未实现。
+这是阶段 2 首次真实私钥持久化证据：测试只在 JUnit 临时目录落盘，物理文件始终是 Argon2id + AES-256-GCM 认证加密 Envelope。公开导出和名称/备注编辑已在第 8 节补齐；本地私钥身份导入仍未实现。
 
-## 8. 闭环 1 测试先行证据
+## 8. 已完成闭环：公开身份、联系人与本地元数据
+
+新增 `PublicIdentityCodec`、`PublicIdentity` 与 `VaultContactManager`：
+
+- 公开身份是 WindLetter Desktop 产品 JSON，不是 WindLetter 消息、Armor 或协议 wire；
+- 导出字段严格限定为 format、version、displayName 和三套公钥记录；
+- 不导出 note、identityId、origin、时间戳或任何 privateKey；
+- JSON parser 开启重复字段检测，拒绝未知字段、尾随数据和 primitive null；
+- 输入 UTF-8 JSON 最大 256 KiB；
+- 三套算法必须按 X25519、ML-KEM-768、Ed25519 完整出现，重复、缺失和换序均拒绝；
+- encoding 和公钥长度必须与算法精确匹配；
+- KID、公钥必须是无 padding 的规范 Base64URL；
+- 导入时通过核心 KID API重新派生并做常量时间比较，不能信任文件中的 KID；
+- 新联系人保存对方 `claimedDisplayName`，本地名称与 note 初始为空，核验状态固定为 `UNVERIFIED`；
+- 相同三套公钥的重新导入会明确拒绝，不覆盖本地名称、note 或核验状态；
+- 本地可以设置/清除联系人显示名称和 note，并显式切换 `UNVERIFIED` / `FINGERPRINT_VERIFIED`；
+- 首次核验记录 `verifiedAt`；只编辑本地元数据时保留既有核验时间；
+- 联系人修改和删除使用与身份相同的候选 Payload 原子提交；
+- 身份 displayName 与 note 也已支持原子编辑，私钥、identityId、origin 和创建时间保持不变。
+
+测试先行证据：
+
+- RED：先新增 `PublicIdentityContactManagerTest`，聚焦测试只因公开身份 codec、domain 和联系人 manager 尚不存在而在 test compilation 失败；
+- 公开导出包含用户确认的 displayName，明确不包含本地 note、identityId、origin 和 privateKey；
+- 公开 JSON 解码后恢复三套公钥，导入联系人默认为未核验；
+- 本地名称、note 和指纹核验状态保存后可重启恢复；
+- 重复导入相同公钥明确失败，既有本地元数据保持不变；
+- 未知 privateKey 字段、重复算法、错误 KID、错误长度、带 padding Base64URL 和重复 JSON 字段全部通用失败且无 cause；
+- 身份 displayName/note 编辑可跨重启恢复，三套私钥保持有效；
+- 完整 `verify` 通过：11 个测试套件、34 个测试，0 failure、0 error、0 skipped。
+
+联系人 `FINGERPRINT_VERIFIED` 只表示本地用户确认了完整公钥组合；它不等于实名，也不等于未来 WindLetter 消息的签名有效。两种状态必须在后续 UI 中分开显示。
+
+## 9. 闭环 1 测试先行证据
 
 RED：
 
@@ -218,17 +251,16 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 9. 当前安全边界
+## 10. 当前安全边界
 
 - 当前已证明空 Vault 的创建、认证加密、严格解析、Windows 原子保存、锁定、重新解锁、加密备份和验证后恢复；
 - 核心私钥一致性校验已接入所有含 Payload 的保存、解锁和恢复路径，真实三算法身份已在测试临时目录完成加密落盘与重启恢复；
-- 自动锁定计时器、最终用户数据目录、身份导入/公开导出、联系人业务和 JavaFX 流程尚未完成，阶段 2 仍不可宣称完成；
+- 自动锁定计时器、最终用户数据目录、本地私钥身份导入和 JavaFX 流程尚未完成，阶段 2 仍不可宣称完成；
 - Windows `ATOMIC_MOVE` 已实测，跨平台目录 fsync 和进程崩溃恰好发生在创建占位后的恢复体验仍是 P2；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 10. 下一闭环
+## 11. 下一闭环
 
-1. 实现公开身份严格 JSON 导出和联系人导入；
-2. 实现联系人名称/备注、指纹核验状态，以及身份名称/备注编辑；
-3. 明确并实现本地私钥身份导入边界；
-4. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面。
+1. 明确并实现本地私钥身份导入边界；
+2. 实现最终用户数据目录与自动锁定计时器；
+3. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面。

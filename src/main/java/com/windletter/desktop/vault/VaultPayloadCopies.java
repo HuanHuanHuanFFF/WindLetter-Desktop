@@ -24,11 +24,8 @@ final class VaultPayloadCopies {
     }
 
     static VaultIdentity identity(VaultIdentity source) {
-        List<VaultPrivateKey> keys = new ArrayList<>();
+        List<VaultPrivateKey> keys = privateKeys(source.keys());
         try {
-            for (VaultPrivateKey key : source.keys()) {
-                keys.add(privateKey(key));
-            }
             return new VaultIdentity(
                 source.identityId(),
                 source.displayName(),
@@ -40,6 +37,19 @@ final class VaultPayloadCopies {
             );
         } catch (RuntimeException failure) {
             keys.forEach(VaultPrivateKey::close);
+            throw failure;
+        }
+    }
+
+    static List<VaultPrivateKey> privateKeys(List<VaultPrivateKey> source) {
+        List<VaultPrivateKey> copies = new ArrayList<>();
+        try {
+            for (VaultPrivateKey key : source) {
+                copies.add(privateKey(key));
+            }
+            return copies;
+        } catch (RuntimeException failure) {
+            copies.forEach(VaultPrivateKey::close);
             throw failure;
         }
     }
@@ -91,7 +101,7 @@ final class VaultPayloadCopies {
         );
     }
 
-    private static VaultPublicKey publicKey(VaultPublicKey source) {
+    static VaultPublicKey publicKey(VaultPublicKey source) {
         byte[] kid = null;
         byte[] publicKey = null;
         try {

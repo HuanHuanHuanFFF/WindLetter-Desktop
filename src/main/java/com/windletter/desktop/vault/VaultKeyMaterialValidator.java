@@ -9,13 +9,8 @@ import com.windletter.crypto.api.X25519PrivateKeyHandle;
 import com.windletter.crypto.bc.BouncyCastleEd25519Crypto;
 import com.windletter.crypto.bc.BouncyCastleMLKem768Crypto;
 import com.windletter.crypto.bc.BouncyCastleX25519Crypto;
-import com.windletter.protocol.key.Ed25519KeyId;
-import com.windletter.protocol.key.MLKem768KeyId;
-import com.windletter.protocol.key.X25519KeyId;
-
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Objects;
 
 /**
@@ -75,7 +70,7 @@ final class VaultKeyMaterialValidator {
             storedPublicKey = key.publicKey();
             storedKid = key.kid();
             derivedPublicKey = importAndReadPublicKey(key.algorithm(), privateKey);
-            derivedKid = deriveKid(key.algorithm(), derivedPublicKey);
+            derivedKid = VaultKeyIds.derive(key.algorithm(), derivedPublicKey);
 
             if (!MessageDigest.isEqual(storedPublicKey, derivedPublicKey)
                 || !MessageDigest.isEqual(storedKid, derivedKid)) {
@@ -99,7 +94,7 @@ final class VaultKeyMaterialValidator {
         try {
             publicKey = key.publicKey();
             storedKid = key.kid();
-            derivedKid = deriveKid(key.algorithm(), publicKey);
+            derivedKid = VaultKeyIds.derive(key.algorithm(), publicKey);
             if (!MessageDigest.isEqual(storedKid, derivedKid)) {
                 throw new IllegalArgumentException(
                     "persisted public-key material is inconsistent"
@@ -139,18 +134,6 @@ final class VaultKeyMaterialValidator {
         try (Ed25519PrivateKeyHandle handle = ed25519.importPrivateKey(privateKey)) {
             return handle.publicKey();
         }
-    }
-
-    private static byte[] deriveKid(
-        VaultKeyAlgorithm algorithm,
-        byte[] publicKey
-    ) {
-        String encoded = switch (algorithm) {
-            case X25519 -> X25519KeyId.derive(publicKey);
-            case ML_KEM_768 -> MLKem768KeyId.derive(publicKey);
-            case ED25519 -> Ed25519KeyId.derive(publicKey);
-        };
-        return Base64.getUrlDecoder().decode(encoded);
     }
 
     private static void clear(byte[] value) {
