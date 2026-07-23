@@ -121,6 +121,10 @@
     -fx-font-size: 13px;
 }
 
+.text-input {
+    -fx-font-family: "SimSun-ExtB", "Microsoft YaHei UI", "Segoe UI", sans-serif;
+}
+
 .text-field:focused,
 .password-field:focused,
 .text-area:focused,
