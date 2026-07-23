@@ -121,7 +121,24 @@ final class VaultService {
 
     void save(VaultSession session) throws VaultWriteException {
         Objects.requireNonNull(session, "session");
-        VaultPayload payload = session.payload();
+        writePayload(session, session.payload());
+    }
+
+    void commit(
+        VaultSession session,
+        VaultPayload candidate
+    ) throws VaultWriteException {
+        Objects.requireNonNull(session, "session");
+        Objects.requireNonNull(candidate, "candidate");
+        session.requireSameVault(candidate);
+        writePayload(session, candidate);
+        session.acceptPayload(candidate);
+    }
+
+    private void writePayload(
+        VaultSession session,
+        VaultPayload payload
+    ) throws VaultWriteException {
         VaultSessionKey sessionKey = session.sessionKey();
         byte[] payloadBytes = null;
         byte[] vaultId = null;
