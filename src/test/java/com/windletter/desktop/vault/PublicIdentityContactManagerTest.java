@@ -75,15 +75,14 @@ class PublicIdentityContactManagerTest {
                     contact.verificationStatus()
                 );
 
-                contacts.updateAndSave(
+                contacts.updateNoteAndVerificationAndSave(
                     session,
                     contactId,
-                    "朋友甲",
                     "线下核对过完整指纹",
                     VaultVerificationStatus.FINGERPRINT_VERIFIED
                 );
                 VaultContact updated = session.payload().contacts().get(0);
-                assertEquals("朋友甲", updated.localDisplayName());
+                assertNull(updated.localDisplayName());
                 assertEquals("线下核对过完整指纹", updated.note());
                 assertEquals(
                     VaultVerificationStatus.FINGERPRINT_VERIFIED,
@@ -95,13 +94,14 @@ class PublicIdentityContactManagerTest {
                     IllegalArgumentException.class,
                     () -> contacts.importAndSave(session, exported)
                 );
-                assertEquals("朋友甲", session.payload().contacts().get(0).localDisplayName());
+                assertNull(session.payload().contacts().get(0).localDisplayName());
             }
 
             try (VaultSession reopened = service.open(password)) {
                 VaultContact contact = reopened.payload().contacts().get(0);
                 assertEquals(contactId, contact.contactId());
-                assertEquals("朋友甲", contact.localDisplayName());
+                assertEquals("给朋友看的身份", contact.claimedDisplayName());
+                assertNull(contact.localDisplayName());
                 assertEquals(
                     VaultVerificationStatus.FINGERPRINT_VERIFIED,
                     contact.verificationStatus()

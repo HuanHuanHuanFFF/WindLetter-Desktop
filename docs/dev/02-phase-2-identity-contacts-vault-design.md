@@ -14,7 +14,7 @@
 
 - 创建受密码保护的本地 Vault，并在启动后解锁、手动锁定或空闲自动锁定；
 - 生成、导入、选择、公开导出和删除本地身份；
-- 管理联系人公钥，保存本地名称、备注和指纹核验状态；
+- 管理联系人公钥，保存不可编辑的对方身份名称、本地备注和指纹核验状态；
 - 备份和恢复完整加密 Vault；
 - 在后续发送、接收流程中按需取得新的短生命周期核心私钥 handle。
 
@@ -72,7 +72,7 @@ IdentityRecordV1 {
 ```
 
 - `identityId` 是本地不可变标识，不由名称或 KID 派生，也不默认对外导出；
-- `displayName` 表示身份名称，既用于本地展示，也包含在公开身份导出中；
+- `displayName` 表示绑定该三密钥身份的稳定名称，创建或导入后不可修改；它既用于本地展示，也包含在公开身份导出中；
 - `note` 表示本地备注，永不进入公开身份导出；
 - `origin` 只表示本机生成或导入，不保存来源文件路径，也不表示可信；
 - `displayName` 为 trim 后 1—64 个 Unicode 码点，拒绝 NUL 与不适合界面展示的控制字符；
@@ -199,7 +199,7 @@ V1 使用严格 UTF-8 JSON：
 - 只导出 `displayName` 和三把公钥，不导出 note、identityId、origin、时间戳或任何私钥；
 - 导入时重新派生三个 KID，不能信任文件中的 KID；
 - `displayName` 是对方自述名称，不等于实名或指纹已核验；
-- 导入后的联系人可设置本地名称；重新导入不得静默覆盖本地名称、备注或核验状态；
+- 导入后的 `claimedDisplayName` 与三套公钥一起冻结；重新导入不得静默覆盖名称、备注或核验状态；
 - V1 不支持静默换钥。任一公钥变化都必须作为新联系人或明确的人工替换操作处理；
 - 用户界面必须把“签名有效”和“联系人指纹已核验”分开显示。
 
@@ -209,7 +209,7 @@ V1 使用严格 UTF-8 JSON：
 ContactRecordV1 {
   contactId: UUID
   claimedDisplayName: UTF-8 text
-  localDisplayName: UTF-8 text | absent
+  localDisplayName: UTF-8 text | absent  // 兼容早期阶段 2 Vault；新版本不写入、不展示
   note: UTF-8 text | absent
   verificationStatus: UNVERIFIED | FINGERPRINT_VERIFIED
   verifiedAt: UTC timestamp | absent
@@ -223,7 +223,7 @@ ContactRecordV1 {
 }
 ```
 
-展示名称优先使用 `localDisplayName`，否则使用对方公开身份中的 `claimedDisplayName`。核验状态是本地用户对完整公钥组合的判断，不从公开身份文件继承。
+界面始终使用对方公开身份中的 `claimedDisplayName`。`localDisplayName` 只为兼容已生成的早期阶段 2 Vault 而保留在 V1 schema 中，不再通过安全视图暴露，也没有编辑入口。核验状态是本地用户对完整公钥组合的判断，不从公开身份文件继承。
 
 ## 7. 核心私钥序列化边界
 
@@ -294,7 +294,18 @@ Java/JVM 无法保证清除所有内部复制；阶段报告必须区分“可�
 - 生成、公开导出、重新导入、选择、删除；
 - note 不进入公开身份，displayName 进入公开身份；
 - 公开身份私钥字段、未知字段、重复算法、错误长度和错误 KID 均拒绝；
-- 联系人本地名称和核验状态不被重新导入静默覆盖；
+- 身份与联系人的 display name 创建/导入后不可修改，只有本地 note 与联系人核验状态可更新；
+- 联系人名称、备注和核验状态不被重新导入静默覆盖；
 - 日志、异常和 UI 文案经过敏感内容扫描。
 
 只有核心边界、Vault、身份/联系人服务、JavaFX 用户流程、自动化测试和交互式 Windows smoke 都通过后，才能报告阶段 2 完成。
+
+## 10. 设计修订：稳定的用户可识别身份名称
+
+2026-07-24 根据用户 UI 测试反馈修订：
+
+- 当前协议消息不携带 display name；接收端只能通过消息中的密码学 KID 匹配本地身份/联系人记录；
+- Demo 阶段由应用保证 `displayName` 与对应三套密钥记录一同创建或导入，之后不可编辑；
+- 用户仍可编辑本地 `note`；联系人还可切换指纹核验状态，这些操作不得改变 display name、密钥或 KID；
+- 公开身份 JSON 中的 `displayName` 是自声明名称，并未因此成为实名或协议级认证字段；真实性仍依赖三组 KID 的可信渠道核验和消息签名结果；
+- 早期阶段 2 schema 的 `localDisplayName` 暂不删除，避免旧 Vault 严格解析失败，但新应用不写入、不展示、不允许编辑。

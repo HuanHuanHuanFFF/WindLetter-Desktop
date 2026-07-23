@@ -52,10 +52,9 @@ class VaultIdentityManagerTest {
                 assertTrue(first.keys().stream().allMatch(
                     key -> !isAllZero(key.privateKey())
                 ));
-                identities.updateMetadataAndSave(
+                identities.updateNoteAndSave(
                     reopened,
                     firstId,
-                    "更新后的日常身份",
                     "更新后的本地备注"
                 );
 
@@ -85,7 +84,7 @@ class VaultIdentityManagerTest {
                     reopenedAgain.payload().identities().get(0).identityId()
                 );
                 assertEquals(
-                    "更新后的日常身份",
+                    "日常身份",
                     reopenedAgain.payload().identities().get(0).displayName()
                 );
                 assertEquals(

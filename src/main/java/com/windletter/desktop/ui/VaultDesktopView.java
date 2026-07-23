@@ -85,7 +85,6 @@ public final class VaultDesktopView implements AutoCloseable {
 
     private ListView<DesktopVault.ContactView> contactList;
     private Label contactName;
-    private Label contactClaimedName;
     private Label contactVerification;
     private Label contactNote;
     private Label contactFingerprint;
@@ -364,8 +363,8 @@ public final class VaultDesktopView implements AutoCloseable {
 
         Button create = primaryButton("生成新身份");
         create.setOnAction(event -> createIdentity());
-        Button edit = secondaryButton("编辑名称与备注");
-        edit.setOnAction(event -> editIdentity());
+        Button edit = secondaryButton("编辑备注");
+        edit.setOnAction(event -> editIdentityNote());
         Button select = secondaryButton("设为发送身份");
         select.setOnAction(event -> selectIdentity());
         Button export = secondaryButton("导出公开身份");
@@ -389,7 +388,7 @@ public final class VaultDesktopView implements AutoCloseable {
             details,
             actionBar,
             boundaryNote(
-                "显示名称会随公开身份文件分享给别人；备注只保存在本地加密保险库中。删除身份前请确认已有可解锁的完整备份。"
+                "显示名称与三套密钥共同标识此身份，创建后不可修改，并会随公开身份文件分享给别人；备注只保存在本地加密保险库中。"
             )
         );
         right.setPadding(new Insets(22));
@@ -426,8 +425,7 @@ public final class VaultDesktopView implements AutoCloseable {
             "生成新身份",
             "对外显示名称",
             "",
-            "",
-            false
+            ""
         );
         input.ifPresent(value -> runBusy(
             () -> vault.createIdentity(value.displayName(), value.note()),
@@ -438,30 +436,27 @@ public final class VaultDesktopView implements AutoCloseable {
         ));
     }
 
-    private void editIdentity() {
+    private void editIdentityNote() {
         DesktopVault.IdentityView selected = selectedIdentity();
         if (selected == null) {
             showStatus("请先选择身份。", true);
             return;
         }
-        Optional<MetadataInput> input = metadataDialog(
-            "编辑身份",
-            "对外显示名称",
-            selected.displayName(),
-            selected.note(),
-            false
+        Optional<String> note = noteDialog(
+            "编辑身份备注",
+            "身份“" + selected.displayName() + "”的显示名称创建后不可修改。",
+            selected.note()
         );
-        input.ifPresent(value -> runBusy(
+        note.ifPresent(value -> runBusy(
             () -> {
-                vault.updateIdentity(
+                vault.updateIdentityNote(
                     selected.identityId(),
-                    value.displayName(),
-                    value.note()
+                    value
                 );
                 return null;
             },
             ignored -> {
-                refreshWorkspace("身份名称与备注已保存。");
+                refreshWorkspace("身份备注已保存。");
                 selectIdentityInList(selected.identityId());
             }
         ));
@@ -617,13 +612,11 @@ public final class VaultDesktopView implements AutoCloseable {
         });
 
         contactName = detailValue();
-        contactClaimedName = detailValue();
         contactVerification = detailValue();
         contactNote = detailValue();
         contactFingerprint = fingerprintValue();
         GridPane details = detailsGrid(
-            "显示名称", contactName,
-            "对方声明名称", contactClaimedName,
+            "身份显示名称", contactName,
             "核验状态", contactVerification,
             "本地备注", contactNote,
             "三组 KID 指纹", contactFingerprint
@@ -633,8 +626,8 @@ public final class VaultDesktopView implements AutoCloseable {
         paste.setOnAction(event -> pasteContact());
         Button importFile = secondaryButton("导入公开身份文件");
         importFile.setOnAction(event -> importContactFile());
-        Button edit = secondaryButton("编辑本地信息");
-        edit.setOnAction(event -> editContact());
+        Button edit = secondaryButton("编辑备注");
+        edit.setOnAction(event -> editContactNote());
         Button verification = secondaryButton("切换指纹核验状态");
         verification.setOnAction(event -> toggleContactVerification());
         Button delete = dangerButton("删除联系人");
@@ -646,7 +639,7 @@ public final class VaultDesktopView implements AutoCloseable {
             details,
             actions(paste, importFile, edit, verification, delete),
             boundaryNote(
-                "“已核对”只表示你通过可信渠道比对了这里的三组完整 KID；它不代表实名，也不能替代接收消息时的签名验证。"
+                "身份显示名称来自对方公开身份，导入后不可修改；“已核对”只表示你通过可信渠道比对了这里的三组完整 KID，不代表实名，也不能替代消息签名验证。"
             )
         );
         right.setPadding(new Insets(22));
@@ -664,9 +657,8 @@ public final class VaultDesktopView implements AutoCloseable {
 
     private void showContactDetails(DesktopVault.ContactView contact) {
         boolean empty = contact == null;
-        contactName.setText(empty ? "请选择联系人" : contact.displayName());
-        contactClaimedName.setText(
-            empty ? "—" : contact.claimedDisplayName()
+        contactName.setText(
+            empty ? "请选择联系人" : contact.claimedDisplayName()
         );
         contactVerification.setText(
             empty ? "—" : DesktopVaultPresenter.verificationLabel(contact)
@@ -717,32 +709,29 @@ public final class VaultDesktopView implements AutoCloseable {
         );
     }
 
-    private void editContact() {
+    private void editContactNote() {
         DesktopVault.ContactView selected = selectedContact();
         if (selected == null) {
             showStatus("请先选择联系人。", true);
             return;
         }
-        Optional<MetadataInput> input = metadataDialog(
-            "编辑联系人本地信息",
-            "本地显示名称（可留空）",
-            selected.localDisplayName(),
-            selected.note(),
-            true
+        Optional<String> note = noteDialog(
+            "编辑联系人备注",
+            "身份“" + selected.claimedDisplayName() + "”的显示名称不可修改。",
+            selected.note()
         );
-        input.ifPresent(value -> runBusy(
+        note.ifPresent(value -> runBusy(
             () -> {
-                vault.updateContact(
+                vault.updateContactNoteAndVerification(
                     selected.contactId(),
-                    value.displayName(),
-                    value.note(),
+                    value,
                     selected.verification()
                         == DesktopVault.ContactVerification.FINGERPRINT_VERIFIED
                 );
                 return null;
             },
             ignored -> {
-                refreshWorkspace("联系人本地信息已保存。");
+                refreshWorkspace("联系人备注已保存。");
                 selectContactInList(selected.contactId());
             }
         ));
@@ -766,9 +755,8 @@ public final class VaultDesktopView implements AutoCloseable {
         }
         runBusy(
             () -> {
-                vault.updateContact(
+                vault.updateContactNoteAndVerification(
                     selected.contactId(),
-                    selected.localDisplayName(),
                     selected.note(),
                     markVerified
                 );
@@ -1185,12 +1173,45 @@ public final class VaultDesktopView implements AutoCloseable {
             .ifPresent(contactList.getSelectionModel()::select);
     }
 
+    private Optional<String> noteDialog(
+        String title,
+        String immutableIdentityMessage,
+        String currentNote
+    ) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle(title);
+        dialog.setHeaderText(immutableIdentityMessage);
+        ButtonType save = new ButtonType(
+            "保存",
+            ButtonBar.ButtonData.OK_DONE
+        );
+        dialog.getDialogPane().getButtonTypes().addAll(
+            save,
+            ButtonType.CANCEL
+        );
+
+        TextArea note = new TextArea(currentNote == null ? "" : currentNote);
+        note.setPrefRowCount(4);
+        note.setWrapText(true);
+        VBox content = new VBox(
+            10,
+            fieldLabel("备注（仅本地加密保存）"),
+            note
+        );
+        content.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(content);
+        dialog.setResultConverter(button ->
+            button == save ? note.getText() : null
+        );
+        return dialog.showAndWait();
+    }
+
     private Optional<MetadataInput> metadataDialog(
         String title,
         String displayNameLabel,
         String currentDisplayName,
-        String currentNote,
-        boolean displayNameOptional
+        String currentNote
     ) {
         Dialog<MetadataInput> dialog = new Dialog<>();
         dialog.initOwner(stage);
@@ -1220,12 +1241,10 @@ public final class VaultDesktopView implements AutoCloseable {
         );
         content.setPadding(new Insets(8));
         dialog.getDialogPane().setContent(content);
-        if (!displayNameOptional) {
-            Node saveButton = dialog.getDialogPane().lookupButton(save);
-            saveButton.disableProperty().bind(
-                displayName.textProperty().isEmpty()
-            );
-        }
+        Node saveButton = dialog.getDialogPane().lookupButton(save);
+        saveButton.disableProperty().bind(
+            displayName.textProperty().isEmpty()
+        );
         dialog.setResultConverter(button -> button == save
             ? new MetadataInput(displayName.getText(), note.getText())
             : null);

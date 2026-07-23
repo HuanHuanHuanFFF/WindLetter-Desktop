@@ -200,7 +200,7 @@
 - 删除最后一个身份后身份列表和默认身份均为空，重启后保持；
 - 完整 `verify` 通过：10 个测试套件、32 个测试，0 failure、0 error、0 skipped。
 
-这是阶段 2 首次真实私钥持久化证据：测试只在 JUnit 临时目录落盘，物理文件始终是 Argon2id + AES-256-GCM 认证加密 Envelope。公开导出和名称/备注编辑已在第 8 节补齐；本地私钥身份导入仍未实现。
+这是阶段 2 首次真实私钥持久化证据：测试只在 JUnit 临时目录落盘，物理文件始终是 Argon2id + AES-256-GCM 认证加密 Envelope。公开导出和备注编辑已在第 8 节补齐；本地私钥身份导入仍未实现。
 
 ## 8. 已完成闭环：公开身份、联系人与本地元数据
 
@@ -215,22 +215,22 @@
 - encoding 和公钥长度必须与算法精确匹配；
 - KID、公钥必须是无 padding 的规范 Base64URL；
 - 导入时通过核心 KID API重新派生并做常量时间比较，不能信任文件中的 KID；
-- 新联系人保存对方 `claimedDisplayName`，本地名称与 note 初始为空，核验状态固定为 `UNVERIFIED`；
-- 相同三套公钥的重新导入会明确拒绝，不覆盖本地名称、note 或核验状态；
-- 本地可以设置/清除联系人显示名称和 note，并显式切换 `UNVERIFIED` / `FINGERPRINT_VERIFIED`；
+- 新联系人保存对方 `claimedDisplayName`，note 初始为空，核验状态固定为 `UNVERIFIED`；
+- 相同三套公钥的重新导入会明确拒绝，不覆盖名称、note 或核验状态；
+- `claimedDisplayName` 导入后冻结；本地只能设置/清除 note，并显式切换 `UNVERIFIED` / `FINGERPRINT_VERIFIED`；
 - 首次核验记录 `verifiedAt`；只编辑本地元数据时保留既有核验时间；
 - 联系人修改和删除使用与身份相同的候选 Payload 原子提交；
-- 身份 displayName 与 note 也已支持原子编辑，私钥、identityId、origin 和创建时间保持不变。
+- 身份 displayName 与三套密钥一同冻结；只有 note 支持原子编辑，私钥、identityId、origin 和创建时间保持不变。
 
 测试先行证据：
 
 - RED：先新增 `PublicIdentityContactManagerTest`，聚焦测试只因公开身份 codec、domain 和联系人 manager 尚不存在而在 test compilation 失败；
 - 公开导出包含用户确认的 displayName，明确不包含本地 note、identityId、origin 和 privateKey；
 - 公开 JSON 解码后恢复三套公钥，导入联系人默认为未核验；
-- 本地名称、note 和指纹核验状态保存后可重启恢复；
+- 稳定名称、note 和指纹核验状态保存后可重启恢复；
 - 重复导入相同公钥明确失败，既有本地元数据保持不变；
 - 未知 privateKey 字段、重复算法、错误 KID、错误长度、带 padding Base64URL 和重复 JSON 字段全部通用失败且无 cause；
-- 身份 displayName/note 编辑可跨重启恢复，三套私钥保持有效；
+- 身份 note 编辑可跨重启恢复，displayName 和三套私钥保持不变；
 - 完整 `verify` 通过：11 个测试套件、34 个测试，0 failure、0 error、0 skipped。
 
 联系人 `FINGERPRINT_VERIFIED` 只表示本地用户确认了完整公钥组合；它不等于实名，也不等于未来 WindLetter 消息的签名有效。两种状态必须在后续 UI 中分开显示。
@@ -293,7 +293,7 @@ V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加�
 
 新增公开 `DesktopVault` 作为 JavaFX 与敏感 Vault 实现之间的唯一业务边界：
 
-- JavaFX 只能取得 identity/contact ID、显示名称、备注、来源、默认状态、核验状态和三组完整 KID 指纹；
+- JavaFX 只能取得 identity/contact ID、稳定显示名称、备注、来源、默认状态、核验状态和三组完整 KID 指纹；
 - 门面不返回私钥、公钥、KEK、Vault ID、底层 Payload 或 Session；
 - 公开身份导出仍由严格 `PublicIdentityCodec` 完成，note 和本地 ID 不进入公开文件；
 - 所有接收密码的方法消费调用方的 `char[]`，无论成功或失败都在返回前清零；
@@ -307,7 +307,7 @@ V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加�
 
 - RED：先新增 `DesktopVaultTest`，聚焦测试只因 `DesktopVault`、安全视图和通用问题类型尚不存在而在 test compilation 失败；
 - 真实生成三算法身份后，安全视图只包含产品元数据和三组 KID，公开导出不含 note、identity ID 或 `privateKey`；
-- 公开身份导入联系人、设置本地名称/note、指纹核验与删除均可通过门面完成；
+- 公开身份导入联系人、设置 note、指纹核验与删除均可通过门面完成；门面不提供修改身份或联系人 display name 的方法；
 - 完整加密备份可检查身份列表、选择导入一个私钥身份，并可在锁定后恢复整库；
 - create、unlock、inspect backup、import identity 和 restore 的密码数组均在方法返回前清零；
 - 错误密码只返回通用解锁失败且无 cause，未锁定时恢复返回明确的安全前置条件；
@@ -319,8 +319,8 @@ V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加�
 
 - 首次启动显示创建保险库页：密码确认、5/15/30/60 分钟自动锁定选项和密码不可恢复提示；
 - 已有保险库显示解锁页，并提供从完整加密备份恢复的入口；
-- 我的身份页支持真实三算法身份生成、名称/note 编辑、默认身份选择、公开身份 JSON 导出、从完整加密备份选择导入和删除；
-- 联系人页支持粘贴公开身份、导入公开身份 JSON、本地名称/note 编辑、三组 KID 指纹展示、核验状态切换和删除；
+- 我的身份页支持真实三算法身份生成、note 编辑、默认身份选择、公开身份 JSON 导出、从完整加密备份选择导入和删除；display name 创建后只读；
+- 联系人页支持粘贴公开身份、导入公开身份 JSON、note 编辑、三组 KID 指纹展示、核验状态切换和删除；对方声明 display name 只读；
 - 备份页支持创建完整加密备份，以及“先锁定、验证成功后替换”的整库恢复；
 - 协议自检页保留阶段 1 真实 `PUBLIC · X25519 · signed · Base64 PEM` 收发与负面检查；
 - 所有 KDF、密钥生成、磁盘和协议操作都在单一后台任务线程执行，JavaFX 线程不直接执行耗时密码学操作；
@@ -334,7 +334,7 @@ V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加�
 测试先行与自动化证据：
 
 - RED：先新增 `DesktopVaultPresenterTest`，聚焦测试只因阶段 2 展示语义 presenter 尚不存在而在 test compilation 失败；
-- 明确区分“生成/导入来源”“默认发送身份”“联系人声明名称/本地名称”；
+- 明确区分“生成/导入来源”“默认发送身份”“联系人稳定声明名称/本地备注”；
 - “已核对指纹”文案明确声明不代表实名，也不代表消息签名有效；
 - 完整 `verify` 通过：17 个测试套件、50 个测试，0 failure、0 error、0 skipped。
 
@@ -345,7 +345,7 @@ Windows 真实 smoke（全部使用 `target/` 临时加密数据，不触碰真�
 - 使用 JavaFX 官方 `Application` 生命周期打开真实解锁工作区，身份、联系人、备份与恢复、协议自检四页完成实际渲染检查；
 - 临时 Vault 中的真实 X25519、ML-KEM-768、Ed25519 身份和三组 KID 在身份页正确显示；
 - 从 JavaFX“生成新身份”对话框创建第二个真实三算法身份成功，列表、note 和三组新 KID 刷新，状态提示为已加密保存；
-- 联系人页正确显示 claimed display name、本地名称、note、三组 KID 和“已核对但不代表实名/签名”的边界；
+- 联系人页正确显示 claimed display name、note、三组 KID 和“已核对但不代表实名/签名”的边界；
 - 从 JavaFX 协议自检页实际运行真实收发成功：签名有效、原文完整恢复、篡改消息与错误收件人均被拒绝；
 - 点击“立即锁定”后工作区被清除并返回解锁页；输入临时 smoke 密码后重新进入工作区成功。
 

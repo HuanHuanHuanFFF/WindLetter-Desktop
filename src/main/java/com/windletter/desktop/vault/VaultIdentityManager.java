@@ -140,18 +140,13 @@ final class VaultIdentityManager {
         }
     }
 
-    void updateMetadataAndSave(
+    void updateNoteAndSave(
         VaultSession session,
         UUID identityId,
-        String displayName,
         String note
     ) throws VaultWriteException {
         Objects.requireNonNull(session, "session");
         Objects.requireNonNull(identityId, "identityId");
-        String checkedDisplayName = VaultModelChecks.displayName(
-            displayName,
-            "displayName"
-        );
         String checkedNote = VaultModelChecks.note(note, "note");
 
         VaultPayload source = session.payload();
@@ -163,7 +158,7 @@ final class VaultIdentityManager {
                     found = true;
                     identities.add(updatedIdentity(
                         identity,
-                        checkedDisplayName,
+                        identity.displayName(),
                         checkedNote,
                         source.updatedAt()
                     ));

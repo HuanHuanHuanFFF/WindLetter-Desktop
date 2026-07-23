@@ -55,9 +55,8 @@ class DesktopVaultTest {
             assertFalse(publicIdentity.contains(identityId.toString()));
 
             UUID contactId = desktopVault.importContact(publicIdentity);
-            desktopVault.updateContact(
+            desktopVault.updateContactNoteAndVerification(
                 contactId,
-                "小岚（工作）",
                 "线下核对",
                 true
             );
@@ -65,8 +64,7 @@ class DesktopVaultTest {
                 .contacts()
                 .get(0);
             assertEquals("小岚", contact.claimedDisplayName());
-            assertEquals("小岚（工作）", contact.localDisplayName());
-            assertEquals("小岚（工作）", contact.displayName());
+            assertEquals("小岚", contact.displayName());
             assertEquals("线下核对", contact.note());
             assertEquals(
                 DesktopVault.ContactVerification.FINGERPRINT_VERIFIED,
@@ -74,10 +72,18 @@ class DesktopVaultTest {
             );
             assertThreeKidFingerprint(contact.fingerprint());
 
-            desktopVault.updateIdentity(identityId, "小岚新名", "新备注");
+            desktopVault.updateIdentityNote(identityId, "新备注");
             assertEquals(
-                "小岚新名",
+                "小岚",
                 desktopVault.snapshot().identities().get(0).displayName()
+            );
+            assertEquals(
+                "新备注",
+                desktopVault.snapshot().identities().get(0).note()
+            );
+            assertEquals(
+                publicIdentity,
+                desktopVault.exportPublicIdentity(identityId)
             );
             desktopVault.deleteContact(contactId);
             assertTrue(desktopVault.snapshot().contacts().isEmpty());

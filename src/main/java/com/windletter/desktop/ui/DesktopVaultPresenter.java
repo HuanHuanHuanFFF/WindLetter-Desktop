@@ -19,7 +19,7 @@ public final class DesktopVaultPresenter {
     }
 
     public static String contactListLabel(DesktopVault.ContactView contact) {
-        return contact.displayName();
+        return contact.claimedDisplayName();
     }
 
     public static String verificationLabel(DesktopVault.ContactView contact) {

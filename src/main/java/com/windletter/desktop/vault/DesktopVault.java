@@ -145,16 +145,14 @@ public final class DesktopVault implements AutoCloseable {
         ));
     }
 
-    public void updateIdentity(
+    public void updateIdentityNote(
         UUID identityId,
-        String displayName,
         String note
     ) throws DesktopVaultException {
         use(session -> {
-            identities.updateMetadataAndSave(
+            identities.updateNoteAndSave(
                 session,
                 identityId,
-                displayName,
                 emptyToNull(note)
             );
             return null;
@@ -208,17 +206,15 @@ public final class DesktopVault implements AutoCloseable {
         }
     }
 
-    public void updateContact(
+    public void updateContactNoteAndVerification(
         UUID contactId,
-        String localDisplayName,
         String note,
         boolean fingerprintVerified
     ) throws DesktopVaultException {
         use(session -> {
-            contacts.updateAndSave(
+            contacts.updateNoteAndVerificationAndSave(
                 session,
                 contactId,
-                emptyToNull(localDisplayName),
                 emptyToNull(note),
                 fingerprintVerified
                     ? VaultVerificationStatus.FINGERPRINT_VERIFIED
@@ -379,7 +375,6 @@ public final class DesktopVault implements AutoCloseable {
             views.add(new ContactView(
                 contact.contactId(),
                 contact.claimedDisplayName(),
-                contact.localDisplayName(),
                 contact.note(),
                 contact.verificationStatus()
                     == VaultVerificationStatus.FINGERPRINT_VERIFIED
@@ -497,15 +492,12 @@ public final class DesktopVault implements AutoCloseable {
     public record ContactView(
         UUID contactId,
         String claimedDisplayName,
-        String localDisplayName,
         String note,
         ContactVerification verification,
         String fingerprint
     ) {
         public String displayName() {
-            return localDisplayName == null
-                ? claimedDisplayName
-                : localDisplayName;
+            return claimedDisplayName;
         }
     }
 }

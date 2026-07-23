@@ -30,18 +30,17 @@ class DesktopVaultPresenterTest {
     }
 
     @Test
-    void shouldUseLocalContactNameWithoutTreatingFingerprintAsIdentityOrSignature() {
+    void shouldUseImmutableClaimedNameWithoutTreatingFingerprintAsIdentityOrSignature() {
         DesktopVault.ContactView verified = new DesktopVault.ContactView(
             UUID.randomUUID(),
             "对方声明名称",
-            "团队里的小岚",
             null,
             DesktopVault.ContactVerification.FINGERPRINT_VERIFIED,
             "X25519  one\nML-KEM-768  two\nEd25519  three"
         );
 
         assertEquals(
-            "团队里的小岚",
+            "对方声明名称",
             DesktopVaultPresenter.contactListLabel(verified)
         );
         String verification = DesktopVaultPresenter.verificationLabel(verified);
@@ -56,7 +55,6 @@ class DesktopVaultPresenterTest {
         DesktopVault.ContactView unverified = new DesktopVault.ContactView(
             UUID.randomUUID(),
             "陌生联系人",
-            null,
             null,
             DesktopVault.ContactVerification.UNVERIFIED,
             "X25519  one\nML-KEM-768  two\nEd25519  three"

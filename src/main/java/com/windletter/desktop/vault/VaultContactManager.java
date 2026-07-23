@@ -68,10 +68,9 @@ final class VaultContactManager {
         return imported.contactId();
     }
 
-    void updateAndSave(
+    void updateNoteAndVerificationAndSave(
         VaultSession session,
         UUID contactId,
-        String localDisplayName,
         String note,
         VaultVerificationStatus verificationStatus
     ) throws VaultWriteException {
@@ -92,7 +91,7 @@ final class VaultContactManager {
                 contacts.add(new VaultContact(
                     contact.contactId(),
                     contact.claimedDisplayName(),
-                    localDisplayName,
+                    contact.localDisplayName(),
                     note,
                     verificationStatus,
                     verifiedAt,
