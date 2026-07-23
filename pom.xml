@@ -29,6 +29,11 @@
             <version>${windletter.version}</version>
         </dependency>
         <dependency>
+            <groupId>com.windletter</groupId>
+            <artifactId>windletter-protocol</artifactId>
+            <version>${windletter.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
             <version>${javafx.version}</version>
