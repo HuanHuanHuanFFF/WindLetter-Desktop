@@ -104,7 +104,32 @@
 
 该校验器已经实现并验证，但尚未接入后续文件解锁服务；在接线完成前不能宣称磁盘 Vault 的私钥一致性已被强制执行。
 
-## 5. 闭环 1 测试先行证据
+## 5. 已完成闭环：加密 Envelope 原子文件与备份
+
+新增 package-private `VaultFileStore`，只接受和返回加密 Envelope：
+
+- 文件读写上限为 8 MiB Payload 加固定 Envelope 余量；
+- 保存时先把调用方 Envelope 防御性复制到受控数组；
+- 在目标目录创建临时文件，完整写入后调用 `FileChannel.force(true)`；
+- 只允许 `ATOMIC_MOVE + REPLACE_EXISTING` 替换目标；
+- 平台不支持原子移动或移动失败时不退化为普通覆盖，旧 Vault 保持原样；
+- 失败后尽力删除临时文件；临时文件只包含认证加密后的 Envelope；
+- 备份通过“读取现有加密 Envelope → 原子写入另一个目标”完成，不解锁、不重新加密；
+- 读取缺失、空、截断、读取期间变化或超大文件时返回无 cause 的统一解锁失败；
+- 读取和写入使用的受控 Envelope 数组在失败或完成后尽力清零。
+
+测试先行证据：
+
+- RED：先新增 `VaultFileStoreTest`，聚焦测试只因 `VaultFileStore` 尚不存在而在 test compilation 失败；
+- GREEN：Windows 测试临时目录上的真实创建、替换、读取和 `ATOMIC_MOVE` 通过；
+- 故障注入：模拟原子移动失败后旧文件 bytes 不变，且目录中无遗留临时文件；
+- 备份：源文件和备份文件同时保留，备份 bytes 与源 Envelope 完全一致；
+- 负向：缺失、空和超过上限的文件返回相同通用失败且无 cause；
+- 完整 `verify` 通过：8 个测试套件、25 个测试，0 failure、0 error、0 skipped。
+
+当前尚未实现目录 fsync 的跨平台保证；Windows 原子移动在目标测试环境已真实通过。断电后的目录项持久性仍作为发布前 P2 记录，不得表述为绝对耐久。
+
+## 6. 闭环 1 测试先行证据
 
 RED：
 
@@ -120,15 +145,15 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 6. 当前安全边界
+## 7. 当前安全边界
 
 - 本闭环证明“内存 payload 可以通过版本化 Header、Argon2id 与 AES-256-GCM 认证加密并安全失败”；
 - 它不证明文件写入原子性、备份可恢复、私钥 schema 正确、解锁生命周期或完整阶段 2 可用；
 - 未经后续 payload、文件和状态机测试，不得把实际身份私钥写入用户数据目录；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 7. 下一闭环
+## 8. 下一闭环
 
-1. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
-2. 建立 create/open/save/lock 服务，强制串联 Cipher、Payload codec 与核心密钥校验；
+1. 建立 create/open/save/lock 服务，强制串联 Cipher、Payload codec 与核心密钥校验；
+2. 实现备份恢复的“先完整验证、后原子替换”服务测试；
 3. 上述闭环通过后，才生成并持久化真实三算法身份密钥。
