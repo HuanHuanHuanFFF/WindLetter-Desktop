@@ -8,6 +8,8 @@ import com.windletter.crypto.bc.BouncyCastleMLKem768Crypto;
 import com.windletter.crypto.bc.BouncyCastleX25519Crypto;
 import java.time.Clock;
 import java.time.Instant;
+import java.nio.file.Path;
+import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -184,6 +186,64 @@ final class VaultIdentityManager {
         }
     }
 
+    UUID importFromVaultAndSave(
+        VaultSession targetSession,
+        Path sourceVaultPath,
+        char[] sourcePassword,
+        UUID sourceIdentityId
+    ) throws VaultOpenException, VaultWriteException {
+        Objects.requireNonNull(targetSession, "targetSession");
+        Objects.requireNonNull(sourceVaultPath, "sourceVaultPath");
+        Objects.requireNonNull(sourcePassword, "sourcePassword");
+        Objects.requireNonNull(sourceIdentityId, "sourceIdentityId");
+
+        VaultService sourceService = new VaultService(sourceVaultPath);
+        try (VaultSession sourceSession = sourceService.open(sourcePassword)) {
+            VaultIdentity sourceIdentity = sourceSession.payload()
+                .identities()
+                .stream()
+                .filter(identity -> identity.identityId().equals(sourceIdentityId))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                    "sourceIdentityId does not exist"
+                ));
+            VaultPayload targetPayload = targetSession.payload();
+            if (targetPayload.identities().stream().anyMatch(
+                identity -> hasSameKeys(identity, sourceIdentity)
+            )) {
+                throw new IllegalArgumentException(
+                    "an identity with the same keys already exists"
+                );
+            }
+
+            List<VaultIdentity> identities = VaultPayloadCopies.identities(
+                targetPayload.identities()
+            );
+            try {
+                VaultIdentity imported = importedIdentity(sourceIdentity);
+                identities.add(imported);
+                UUID importedId = imported.identityId();
+                UUID defaultIdentityId =
+                    targetPayload.settings().defaultIdentityId() == null
+                        ? importedId
+                        : targetPayload.settings().defaultIdentityId();
+                VaultPayload candidate = buildCandidate(
+                    targetPayload,
+                    identities,
+                    new VaultSettings(
+                        defaultIdentityId,
+                        targetPayload.settings().autoLockMinutes()
+                    )
+                );
+                identities = List.of();
+                commitCandidate(targetSession, candidate);
+                return importedId;
+            } finally {
+                identities.forEach(VaultIdentity::close);
+            }
+        }
+    }
+
     private VaultIdentity generateIdentity(
         String displayName,
         String note
@@ -330,6 +390,46 @@ final class VaultIdentityManager {
             keys.forEach(VaultPrivateKey::close);
             throw failure;
         }
+    }
+
+    private VaultIdentity importedIdentity(VaultIdentity source) {
+        List<VaultPrivateKey> keys = VaultPayloadCopies.privateKeys(
+            source.keys()
+        );
+        Instant now = clock.instant();
+        try {
+            return new VaultIdentity(
+                UUID.randomUUID(),
+                source.displayName(),
+                source.note(),
+                VaultIdentityOrigin.IMPORTED,
+                now,
+                now,
+                keys
+            );
+        } catch (RuntimeException failure) {
+            keys.forEach(VaultPrivateKey::close);
+            throw failure;
+        }
+    }
+
+    private static boolean hasSameKeys(
+        VaultIdentity first,
+        VaultIdentity second
+    ) {
+        for (int index = 0; index < first.keys().size(); index++) {
+            byte[] firstKid = first.keys().get(index).kid();
+            byte[] secondKid = second.keys().get(index).kid();
+            try {
+                if (!MessageDigest.isEqual(firstKid, secondKid)) {
+                    return false;
+                }
+            } finally {
+                clear(secondKid);
+                clear(firstKid);
+            }
+        }
+        return true;
     }
 
     private void commitCandidate(
