@@ -261,7 +261,35 @@ V1 不新增第二套单身份私钥文件或第二套密码学格式：
 
 V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加密 Vault 备份及其密码；应用只合并选中身份。独立单身份加密包可作为未来 P2，但不得复制 Vault 密码学实现。
 
-## 10. 闭环 1 测试先行证据
+## 10. 已完成闭环：最终用户数据路径与自动锁定
+
+最终用户 Vault 不写入工程目录：
+
+- Windows 默认使用 `%APPDATA%\WindLetter\vault.wlv`；
+- 非 Windows 或 Windows 缺少 `APPDATA` 时，回退到 `${user.home}/.windletter/vault.wlv`；
+- 路径转换为绝对规范路径，父目录在首次原子保存时创建；
+- 文件与目录权限当前继承操作系统用户目录的访问控制，V1 不声称额外加固 ACL。
+
+`VaultSessionController` 统一持有解锁会话和自动锁定任务：
+
+- 延迟值取自已通过严格 Payload 校验的 `autoLockMinutes`；
+- 每次受保护操作记录活动时取消旧任务并重新计时；
+- 计时任务携带 generation token，即使底层已取消任务仍并发触发，也不能锁定更新后的会话；
+- 超时、用户主动锁定、会话替换和控制器关闭都会关闭 `VaultSession`，从而清除当前 Payload 私钥副本与 KEK；
+- 计时线程为 daemon，不阻止应用退出；
+- 调度失败时不保留半解锁会话。
+
+测试先行证据：
+
+- RED：先新增 `DesktopDataPathsTest` 与 `VaultSessionControllerTest`，聚焦测试只因路径、调度器和会话控制器尚不存在而在 test compilation 失败；
+- Windows 与回退路径均得到精确验证；
+- 活动会取消旧任务并按 Payload 设置重新调度；
+- 已取消的旧任务即使被强制触发，也不会锁定当前会话；
+- 最新任务到期后会话进入锁定状态，KEK 缓冲区已清零；
+- 替换会话、主动锁定与控制器关闭均清理对应会话；
+- 完整 `verify` 通过：14 个测试套件、40 个测试，0 failure、0 error、0 skipped。
+
+## 11. 闭环 1 测试先行证据
 
 RED：
 
@@ -277,16 +305,17 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 11. 当前安全边界
+## 12. 当前安全边界
 
 - 当前已证明空 Vault 的创建、认证加密、严格解析、Windows 原子保存、锁定、重新解锁、加密备份和验证后恢复；
 - 核心私钥一致性校验已接入所有含 Payload 的保存、解锁和恢复路径，真实三算法身份已在测试临时目录完成加密落盘与重启恢复；
-- 自动锁定计时器、最终用户数据目录和 JavaFX 流程尚未完成，阶段 2 仍不可宣称完成；
+- 最终用户数据目录和自动锁定会话控制已完成，但活动续期尚需接入 JavaFX 用户操作；阶段 2 仍不可宣称完成；
 - Windows `ATOMIC_MOVE` 已实测，跨平台目录 fsync 和进程崩溃恰好发生在创建占位后的恢复体验仍是 P2；
+- Windows 用户数据目录当前继承 `%APPDATA%` ACL，未额外收紧访问控制是阶段 2 的待评估 P2；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 12. 下一闭环
+## 13. 下一闭环
 
-1. 实现最终用户数据目录与自动锁定计时器；
-2. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面；
+1. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面；
+2. 将用户活动续期接入受保护界面操作；
 3. 完成真实 Windows 交互式 smoke 与阶段 2 报告。
