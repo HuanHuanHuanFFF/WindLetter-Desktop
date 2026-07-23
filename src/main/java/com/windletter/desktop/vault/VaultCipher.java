@@ -33,7 +33,7 @@ final class VaultCipher {
     private static final String KDF_ALGORITHM = "ARGON2ID";
     private static final String AEAD_ALGORITHM = "AES-256-GCM";
     private static final int FORMAT_VERSION = 1;
-    private static final int VAULT_ID_BYTES = 16;
+    private static final int VAULT_ID_BYTES = VaultModelChecks.VAULT_ID_BYTES;
     private static final int SALT_BYTES = 16;
     private static final int NONCE_BYTES = 12;
     private static final int KEY_BYTES = 32;
@@ -56,10 +56,12 @@ final class VaultCipher {
 
     byte[] seal(
         byte[] plaintext,
+        byte[] vaultId,
         char[] password,
         VaultKdfParameters parameters
     ) throws VaultWriteException {
         Objects.requireNonNull(plaintext, "plaintext");
+        Objects.requireNonNull(vaultId, "vaultId");
         Objects.requireNonNull(password, "password");
         Objects.requireNonNull(parameters, "parameters");
         if (plaintext.length > MAX_PLAINTEXT_BYTES) {
@@ -68,8 +70,11 @@ final class VaultCipher {
         if (password.length == 0) {
             throw new IllegalArgumentException("password must not be empty");
         }
+        if (vaultId.length != VAULT_ID_BYTES) {
+            throw new IllegalArgumentException("vaultId must contain exactly 16 bytes");
+        }
 
-        byte[] vaultId = randomBytes(VAULT_ID_BYTES);
+        byte[] ownedVaultId = vaultId.clone();
         byte[] salt = randomBytes(SALT_BYTES);
         byte[] nonce = randomBytes(NONCE_BYTES);
         byte[] passwordBytes = null;
@@ -81,7 +86,7 @@ final class VaultCipher {
             VaultHeader header = new VaultHeader(
                 FORMAT,
                 FORMAT_VERSION,
-                vaultId,
+                ownedVaultId,
                 new KdfHeader(
                     KDF_ALGORITHM,
                     salt,
@@ -116,11 +121,11 @@ final class VaultCipher {
             clear(headerBytes);
             clear(nonce);
             clear(salt);
-            clear(vaultId);
+            clear(ownedVaultId);
         }
     }
 
-    byte[] open(byte[] envelope, char[] password) throws VaultOpenException {
+    OpenedVault open(byte[] envelope, char[] password) throws VaultOpenException {
         Objects.requireNonNull(envelope, "envelope");
         Objects.requireNonNull(password, "password");
 
@@ -132,14 +137,14 @@ final class VaultCipher {
         byte[] passwordBytes = null;
         byte[] key = null;
         byte[] plaintext = null;
-        boolean success = false;
+        VaultHeader header = null;
         try {
             ParsedEnvelope parsed = parseEnvelope(ownedEnvelope);
             headerBytes = parsed.headerBytes();
             aad = parsed.aad();
             ciphertext = parsed.ciphertext();
 
-            VaultHeader header = HEADER_MAPPER.readValue(headerBytes, VaultHeader.class);
+            header = HEADER_MAPPER.readValue(headerBytes, VaultHeader.class);
             validateHeader(header);
             canonicalHeader = HEADER_MAPPER.writeValueAsBytes(header);
             if (!MessageDigest.isEqual(headerBytes, canonicalHeader)) {
@@ -164,14 +169,12 @@ final class VaultCipher {
                 aad,
                 ciphertext
             );
-            success = true;
-            return plaintext;
+            OpenedVault opened = new OpenedVault(header.vaultId(), plaintext);
+            return opened;
         } catch (IOException | GeneralSecurityException | RuntimeException failure) {
             throw new VaultOpenException();
         } finally {
-            if (!success) {
-                clear(plaintext);
-            }
+            clear(plaintext);
             clear(key);
             clear(passwordBytes);
             clear(ciphertext);
@@ -179,6 +182,7 @@ final class VaultCipher {
             clear(canonicalHeader);
             clear(headerBytes);
             clear(ownedEnvelope);
+            clearHeader(header);
         }
     }
 
@@ -282,6 +286,18 @@ final class VaultCipher {
     private static void clear(byte[] value) {
         if (value != null) {
             Arrays.fill(value, (byte) 0);
+        }
+    }
+
+    private static void clearHeader(VaultHeader header) {
+        if (header != null) {
+            clear(header.vaultId());
+            if (header.kdf() != null) {
+                clear(header.kdf().salt());
+            }
+            if (header.aead() != null) {
+                clear(header.aead().nonce());
+            }
         }
     }
 

@@ -56,7 +56,33 @@
 - RED：先新增 `VaultKdfCalibratorTest`，聚焦测试只因校准器和校准结果类型尚不存在而在 test compilation 失败；
 - GREEN：实现真实 probe 与可注入计时 seam 后，3 项校准行为测试、Cipher 联合聚焦测试和完整 `verify` 全部通过。
 
-## 3. 闭环 1 测试先行证据
+## 3. 已完成闭环：严格 Vault Payload 与 Vault ID 绑定
+
+新增完整 V1 内存模型与严格 CBOR codec：
+
+- Payload 包含 `vaultId`、时间、身份、联系人和自动锁定设置；
+- 每个身份必须恰好按 X25519、ML-KEM-768、Ed25519 顺序包含三条私钥记录；
+- 私钥编码和长度固定为 `RAW-32`、`FIPS203-DK-2400`、`SEED-32`；
+- 联系人只持有三套公钥，核验状态与 `verifiedAt` 必须一致；
+- 身份/联系人 ID 不得重复，默认身份必须引用当前已有身份；
+- display name 按 1—64 个 Unicode 码点校验并拒绝不适合界面显示的控制字符；
+- note 最多 256 个 Unicode 码点，允许缺失、换行和 tab，但拒绝 NUL、代理码点及其它控制字符；
+- 身份最多 64 个、联系人最多 1024 个、Payload 最多 8 MiB；
+- CBOR 私钥、KID 和公钥必须是 byte string，文本/Base64 形式直接拒绝；
+- parser 拒绝重复 map key、未知字段、尾随 token、primitive null、非规范 CBOR 和越界集合；
+- Cipher seal 现在由上层传入唯一 `vaultId`；open 返回可关闭的 Header `vaultId` 与 plaintext；
+- Payload decode 必须以常量时间比较认证 Header 和明文 Payload 的 `vaultId`；
+- `OpenedVault.close()` 和 `VaultPayload.close()` 会清零各自拥有的明文与私钥数组，关闭后拒绝再次导出。
+
+测试先行证据：
+
+- RED：先修改 Cipher 契约并新增 `VaultPayloadCodecTest`，聚焦测试只因 Payload 模型、codec、`OpenedVault` 以及新 seal 签名尚不存在而在 test compilation 失败；
+- GREEN：真实二进制 CBOR 往返、Header/Payload ID 不一致、重复算法、未知字段、尾随数据、文本私钥、错误长度、集合超限、明文/私钥关闭清零均通过；
+- 完整 `verify` 通过：6 个测试套件、18 个测试，0 failure、0 error、0 skipped。
+
+本闭环只验证结构和内存所有权。当前尚未通过核心 provider 重新导入私钥并核对派生公钥/KID，因此仍禁止把真实身份私钥写入磁盘。
+
+## 4. 闭环 1 测试先行证据
 
 RED：
 
@@ -72,15 +98,15 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 4. 当前安全边界
+## 5. 当前安全边界
 
 - 本闭环证明“内存 payload 可以通过版本化 Header、Argon2id 与 AES-256-GCM 认证加密并安全失败”；
 - 它不证明文件写入原子性、备份可恢复、私钥 schema 正确、解锁生命周期或完整阶段 2 可用；
 - 未经后续 payload、文件和状态机测试，不得把实际身份私钥写入用户数据目录；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 5. 下一闭环
+## 6. 下一闭环
 
-1. 实现严格、带上限的 CBOR Vault payload schema；
+1. 通过核心 provider 重新导入三套私钥，核对派生公钥与核心 KID；
 2. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
-3. 上述闭环通过后，才接入真实三算法身份密钥。
+3. 上述闭环通过后，才生成并持久化真实三算法身份密钥。
