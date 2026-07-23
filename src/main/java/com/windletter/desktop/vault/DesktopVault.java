@@ -93,6 +93,12 @@ public final class DesktopVault implements AutoCloseable {
         return sessions.isUnlocked();
     }
 
+    public void recordActivity() {
+        if (sessions.isUnlocked()) {
+            sessions.activity();
+        }
+    }
+
     public void create(char[] password, int autoLockMinutes)
         throws DesktopVaultException {
         try {
