@@ -82,7 +82,29 @@
 
 本闭环只验证结构和内存所有权。当前尚未通过核心 provider 重新导入私钥并核对派生公钥/KID，因此仍禁止把真实身份私钥写入磁盘。
 
-## 4. 闭环 1 测试先行证据
+## 4. 已完成闭环：核心密钥材料一致性校验
+
+新增 package-private `VaultKeyMaterialValidator`：
+
+- 对每条身份私钥调用固定核心基线的 `importPrivateKey(...)`；
+- 从核心 handle 重新取得公钥，并与 Vault 中持久化公钥做常量时间比较；
+- 对身份和联系人公钥调用核心 `X25519KeyId`、`MLKem768KeyId`、`Ed25519KeyId` 重新派生 KID；
+- 将核心返回的 Base64URL KID 解码为 Vault 的 32-byte KID 后做常量时间比较；
+- 不复制私钥导入、ML-KEM 结构、公钥派生或 KID 算法；
+- 每次校验创建短生命周期 handle，并在 try-with-resources 中关闭；
+- 私钥、公钥与 KID 临时数组均在 finally 中尽力清零；
+- provider 拒绝、私钥/公钥不匹配和 KID 不匹配统一为无 cause 的 Payload 通用失败。
+
+测试先行证据：
+
+- RED：先新增真实核心 provider 测试，聚焦测试只因 `VaultKeyMaterialValidator` 尚不存在而在 test compilation 失败；
+- GREEN：真实生成并导出的 X25519、ML-KEM-768、Ed25519 私钥连续校验两次通过；
+- 负向：篡改身份公钥、篡改联系人 KID 均稳定返回通用失败；
+- 完整 `verify` 通过：7 个测试套件、21 个测试，0 failure、0 error、0 skipped。
+
+该校验器已经实现并验证，但尚未接入后续文件解锁服务；在接线完成前不能宣称磁盘 Vault 的私钥一致性已被强制执行。
+
+## 5. 闭环 1 测试先行证据
 
 RED：
 
@@ -98,15 +120,15 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 5. 当前安全边界
+## 6. 当前安全边界
 
 - 本闭环证明“内存 payload 可以通过版本化 Header、Argon2id 与 AES-256-GCM 认证加密并安全失败”；
 - 它不证明文件写入原子性、备份可恢复、私钥 schema 正确、解锁生命周期或完整阶段 2 可用；
 - 未经后续 payload、文件和状态机测试，不得把实际身份私钥写入用户数据目录；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 6. 下一闭环
+## 7. 下一闭环
 
-1. 通过核心 provider 重新导入三套私钥，核对派生公钥与核心 KID；
-2. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
+1. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
+2. 建立 create/open/save/lock 服务，强制串联 Cipher、Payload codec 与核心密钥校验；
 3. 上述闭环通过后，才生成并持久化真实三算法身份密钥。
