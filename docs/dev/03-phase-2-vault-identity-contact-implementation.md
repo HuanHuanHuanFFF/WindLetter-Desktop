@@ -25,13 +25,38 @@
 
 未实现：
 
-- 尚未选择创建 Vault 时的 Argon2id 校准参数；当前 `minimumSupported()` 只是安全下限和测试参数，不是产品默认值；
 - 尚未实现 Vault payload schema 编解码；
 - 尚未实现原子文件保存、备份、恢复或用户数据目录；
 - 尚未生成、导出或落盘任何真实身份私钥；
 - 尚未实现锁定状态机、身份、联系人或 JavaFX 界面。
 
-## 2. 测试先行证据
+## 2. 已完成闭环：Argon2id 目标机校准
+
+新增 package-private `VaultKdfCalibrator`：
+
+- 创建 Vault 前通过真实 Argon2id probe 测量当前 JVM；
+- 从 64 MiB、128 MiB、256 MiB 候选中选择目标时延内最大的内存档位；
+- 基于实测每次迭代成本选择 2—10 次迭代，并再次测量最终组合；
+- 默认目标时延为 500 ms，最大候选内存同时受产品上限和 JVM 最大堆四分之一约束；
+- 校准用随机 password bytes、salt 和派生 key 均在 finally 中尽力清零；
+- Cipher 与校准器共用唯一 `VaultKeyDerivation`，没有复制 Argon2id 参数或实现。
+
+校准参数不是全局常量。后续创建服务会把本机校准结果写入每个 Vault 的认证 Header；解锁已有 Vault 时使用文件中经过边界检查和 AEAD 认证的参数。
+
+测试使用可控计时 probe，稳定覆盖：
+
+- 在目标时延内选择最大内存，再增加迭代；
+- 最低安全成本已超过目标时延时不降低安全下限；
+- 遵守目标机器内存 cap 和最大迭代次数；
+- `VaultCipherTest,VaultKdfCalibratorTest` 聚焦测试通过；
+- 完整 `verify` 通过：5 个测试套件、12 个测试，0 failure、0 error、0 skipped。
+
+测试先行证据：
+
+- RED：先新增 `VaultKdfCalibratorTest`，聚焦测试只因校准器和校准结果类型尚不存在而在 test compilation 失败；
+- GREEN：实现真实 probe 与可注入计时 seam 后，3 项校准行为测试、Cipher 联合聚焦测试和完整 `verify` 全部通过。
+
+## 3. 闭环 1 测试先行证据
 
 RED：
 
@@ -47,16 +72,15 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 3. 当前安全边界
+## 4. 当前安全边界
 
 - 本闭环证明“内存 payload 可以通过版本化 Header、Argon2id 与 AES-256-GCM 认证加密并安全失败”；
 - 它不证明文件写入原子性、备份可恢复、私钥 schema 正确、解锁生命周期或完整阶段 2 可用；
 - 未经后续 payload、文件和状态机测试，不得把实际身份私钥写入用户数据目录；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 4. 下一闭环
+## 5. 下一闭环
 
-1. 在目标 JDK/Windows 环境实现并测试 Argon2id 参数校准；
-2. 实现严格、带上限的 CBOR Vault payload schema；
-3. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
-4. 上述闭环通过后，才接入真实三算法身份密钥。
+1. 实现严格、带上限的 CBOR Vault payload schema；
+2. 使用测试临时目录实现安全文件创建、flush、原子替换和恢复失败保留旧文件；
+3. 上述闭环通过后，才接入真实三算法身份密钥。

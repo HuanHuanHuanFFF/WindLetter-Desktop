@@ -7,8 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import org.bouncycastle.crypto.PBEParametersGenerator;
-import org.bouncycastle.crypto.generators.Argon2BytesGenerator;
-import org.bouncycastle.crypto.params.Argon2Parameters;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -101,7 +99,7 @@ final class VaultCipher {
 
             aad = encodePrefix(headerBytes);
             passwordBytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password);
-            key = deriveKey(passwordBytes, salt, parameters);
+            key = VaultKeyDerivation.derive(passwordBytes, salt, parameters);
             ciphertext = crypt(Cipher.ENCRYPT_MODE, key, nonce, aad, plaintext);
 
             byte[] envelope = new byte[aad.length + ciphertext.length];
@@ -154,7 +152,11 @@ final class VaultCipher {
                 header.kdf().parallelism()
             );
             passwordBytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password);
-            key = deriveKey(passwordBytes, header.kdf().salt(), parameters);
+            key = VaultKeyDerivation.derive(
+                passwordBytes,
+                header.kdf().salt(),
+                parameters
+            );
             plaintext = crypt(
                 Cipher.DECRYPT_MODE,
                 key,
@@ -226,27 +228,6 @@ final class VaultCipher {
         output.putInt(headerBytes.length);
         output.put(headerBytes);
         return output.array();
-    }
-
-    private static byte[] deriveKey(
-        byte[] password,
-        byte[] salt,
-        VaultKdfParameters parameters
-    ) {
-        Argon2Parameters argon2Parameters = new Argon2Parameters.Builder(
-            Argon2Parameters.ARGON2_id
-        )
-            .withVersion(Argon2Parameters.ARGON2_VERSION_13)
-            .withSalt(salt)
-            .withMemoryAsKB(parameters.memoryKiB())
-            .withIterations(parameters.iterations())
-            .withParallelism(parameters.parallelism())
-            .build();
-        Argon2BytesGenerator generator = new Argon2BytesGenerator();
-        generator.init(argon2Parameters);
-        byte[] key = new byte[KEY_BYTES];
-        generator.generateBytes(password, key);
-        return key;
     }
 
     private static byte[] crypt(
