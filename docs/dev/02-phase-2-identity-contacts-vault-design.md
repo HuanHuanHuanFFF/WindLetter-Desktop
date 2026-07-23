@@ -194,6 +194,32 @@ V1 使用严格 UTF-8 JSON：
 }
 ```
 
+上述 JSON 是公开身份的规范内层数据。用户交换时默认使用以下两种文本装甲之一：
+
+标准 Base64 PEM：
+
+```text
+-----BEGIN WINDLETTER PUBLIC IDENTITY-----
+<规范公开身份 JSON 的 UTF-8 bytes 经标准 Base64 编码，按 64 字符换行>
+-----END WINDLETTER PUBLIC IDENTITY-----
+```
+
+風铭 WindBase：
+
+```text
+-----風铭 起-----
+<规范公开身份 JSON 的 UTF-8 bytes 经核心 WindBase1024F V1 编码>
+-----風铭 凪-----
+```
+
+装甲规则：
+
+- PEM 正文是标准 Base64，不是 Base64URL，也不增加 WindLetter 二进制消息帧；
+- WindBase 正文必须调用固定核心库 `WindLetterArmor` 完成版本、长度、字母表和 CRC 处理；桌面端只替换公开身份专用的精确头尾，不复制 WindBase 算法；
+- 导入按精确首行自动路由，拒绝消息使用的 `-----風笺 起-----` 以及错误头尾；两种装甲恢复 JSON 后都必须继续通过同一套严格 schema、公钥长度和 KID 重派生检查；
+- 为兼容阶段 2 已导出的数据，导入仍接受未装甲的原始 JSON；新 UI 不再默认输出原始 JSON；
+- 装甲只改善复制、粘贴和类型路由，不提供签名、实名或新的信任保证。
+
 规则：
 
 - 只导出 `displayName` 和三把公钥，不导出 note、identityId、origin、时间戳或任何私钥；

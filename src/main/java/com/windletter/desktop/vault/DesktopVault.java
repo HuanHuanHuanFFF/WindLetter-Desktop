@@ -175,14 +175,26 @@ public final class DesktopVault implements AutoCloseable {
         });
     }
 
-    public String exportPublicIdentity(UUID identityId)
+    public String exportPublicIdentity(
+        UUID identityId,
+        PublicIdentityArmor format
+    )
         throws DesktopVaultException {
+        Objects.requireNonNull(format, "format");
         return use(session -> {
             VaultIdentity identity = findIdentity(
                 session.payload(),
                 identityId
             );
-            return publicIdentities.encode(identity);
+            return publicIdentities.encodeArmored(
+                identity,
+                switch (format) {
+                    case BASE64_PEM ->
+                        PublicIdentityArmorCodec.Format.BASE64_PEM;
+                    case WIND_BASE_1024F_V1 ->
+                        PublicIdentityArmorCodec.Format.WIND_BASE_1024F_V1;
+                }
+            );
         });
     }
 
@@ -465,6 +477,11 @@ public final class DesktopVault implements AutoCloseable {
     public enum ContactVerification {
         UNVERIFIED,
         FINGERPRINT_VERIFIED
+    }
+
+    public enum PublicIdentityArmor {
+        BASE64_PEM,
+        WIND_BASE_1024F_V1
     }
 
     public record Snapshot(

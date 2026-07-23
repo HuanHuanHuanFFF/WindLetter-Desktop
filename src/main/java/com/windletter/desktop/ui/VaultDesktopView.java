@@ -9,7 +9,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
@@ -44,6 +43,8 @@ import javafx.scene.control.Tab;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.input.Clipboard;
+import javafx.scene.input.ClipboardContent;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
@@ -62,7 +63,8 @@ public final class VaultDesktopView implements AutoCloseable {
 
     private static final String SELF_TEST_PAYLOAD =
         "風笺桌面端真实收发 · 𠮷 · 🌬️";
-    private static final long MAX_PUBLIC_IDENTITY_BYTES = 256L * 1024L;
+    private static final long MAX_PUBLIC_IDENTITY_FILE_BYTES =
+        3L * 1024L * 1024L;
 
     private final Stage stage;
     private final DesktopVault vault;
@@ -367,7 +369,7 @@ public final class VaultDesktopView implements AutoCloseable {
         edit.setOnAction(event -> editIdentityNote());
         Button select = secondaryButton("设为发送身份");
         select.setOnAction(event -> selectIdentity());
-        Button export = secondaryButton("导出公开身份");
+        Button export = secondaryButton("分享公开身份");
         export.setOnAction(event -> exportIdentity());
         Button importBackup = secondaryButton("从加密备份导入");
         importBackup.setOnAction(event -> inspectIdentityBackup());
@@ -388,7 +390,7 @@ public final class VaultDesktopView implements AutoCloseable {
             details,
             actionBar,
             boundaryNote(
-                "显示名称与三套密钥共同标识此身份，创建后不可修改，并会随公开身份文件分享给别人；备注只保存在本地加密保险库中。"
+                "显示名称与三套密钥共同标识此身份，创建后不可修改，并会随公开身份文本分享给别人；备注只保存在本地加密保险库中。"
             )
         );
         right.setPadding(new Insets(22));
@@ -486,25 +488,92 @@ public final class VaultDesktopView implements AutoCloseable {
             showStatus("请先选择身份。", true);
             return;
         }
-        Path target = chooseSavePublicIdentity(selected.displayName());
-        if (target == null) {
-            return;
-        }
         runBusy(
-            () -> {
-                String encoded = vault.exportPublicIdentity(selected.identityId());
-                Files.writeString(
-                    target,
-                    encoded,
-                    StandardCharsets.UTF_8,
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING,
-                    StandardOpenOption.WRITE
-                );
-                return null;
-            },
-            ignored -> showStatus("公开身份已导出；文件中不含私钥和本地备注。", false)
+            () -> new PublicIdentityOutputs(
+                vault.exportPublicIdentity(
+                    selected.identityId(),
+                    DesktopVault.PublicIdentityArmor.WIND_BASE_1024F_V1
+                ),
+                vault.exportPublicIdentity(
+                    selected.identityId(),
+                    DesktopVault.PublicIdentityArmor.BASE64_PEM
+                )
+            ),
+            outputs -> showPublicIdentity(selected.displayName(), outputs)
         );
+    }
+
+    private void showPublicIdentity(
+        String displayName,
+        PublicIdentityOutputs outputs
+    ) {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.initOwner(stage);
+        dialog.setTitle("分享公开身份");
+        dialog.setHeaderText(
+            "身份“" + displayName + "”的公开身份文本"
+        );
+        dialog.getDialogPane().getButtonTypes().add(
+            new ButtonType("关闭", ButtonBar.ButtonData.CANCEL_CLOSE)
+        );
+
+        ComboBox<PublicIdentityFormatChoice> format = new ComboBox<>(
+            FXCollections.observableArrayList(
+                PublicIdentityFormatChoice.values()
+            )
+        );
+        format.getSelectionModel().select(
+            PublicIdentityFormatChoice.WIND_BASE
+        );
+
+        TextArea output = new TextArea(outputs.windBase());
+        output.setEditable(false);
+        output.setWrapText(false);
+        output.setPrefRowCount(16);
+        output.setPrefColumnCount(74);
+
+        Label copyStatus = new Label(
+            "公开身份不含私钥和本地备注；收到的人仍需核对 KID 指纹。"
+        );
+        copyStatus.setWrapText(true);
+        Button copy = primaryButton("复制到剪贴板");
+        copy.setOnAction(event -> {
+            ClipboardContent content = new ClipboardContent();
+            content.putString(output.getText());
+            boolean copied = Clipboard.getSystemClipboard()
+                .setContent(content);
+            copyStatus.setText(
+                copied
+                    ? "已复制到剪贴板。"
+                    : "未能写入剪贴板，请手动选择并复制。"
+            );
+        });
+
+        format.valueProperty().addListener(
+            (observable, oldValue, selected) -> {
+                if (selected != null) {
+                    output.setText(outputs.value(selected));
+                    copyStatus.setText(
+                        "已切换格式，尚未复制新的公开身份文本。"
+                    );
+                }
+            }
+        );
+
+        VBox content = new VBox(
+            10,
+            fieldLabel("文本格式"),
+            format,
+            fieldLabel("公开身份装甲"),
+            output,
+            actions(copy),
+            copyStatus
+        );
+        content.setPadding(new Insets(8));
+        dialog.getDialogPane().setContent(content);
+        dialog.getDialogPane().setPrefWidth(780);
+        dialog.showAndWait();
+        showStatus("公开身份文本已生成。", false);
     }
 
     private void inspectIdentityBackup() {
@@ -678,7 +747,13 @@ public final class VaultDesktopView implements AutoCloseable {
         FileChooser chooser = new FileChooser();
         chooser.setTitle("导入公开身份文件");
         chooser.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter("風笺公开身份 (*.json)", "*.json")
+            new FileChooser.ExtensionFilter(
+                "WindLetter 公开身份 (*.pem, *.txt, *.json, *.wlpub)",
+                "*.pem",
+                "*.txt",
+                "*.json",
+                "*.wlpub"
+            )
         );
         java.io.File selected = chooser.showOpenDialog(stage);
         if (selected == null) {
@@ -687,7 +762,7 @@ public final class VaultDesktopView implements AutoCloseable {
         Path source = selected.toPath();
         runBusy(
             () -> {
-                if (Files.size(source) > MAX_PUBLIC_IDENTITY_BYTES) {
+                if (Files.size(source) > MAX_PUBLIC_IDENTITY_FILE_BYTES) {
                     throw new IOException("public identity is too large");
                 }
                 return Files.readString(source, StandardCharsets.UTF_8);
@@ -1256,7 +1331,7 @@ public final class VaultDesktopView implements AutoCloseable {
         dialog.initOwner(stage);
         dialog.setTitle("粘贴公开身份");
         dialog.setHeaderText(
-            "粘贴完整的 WindLetter Desktop 公开身份 JSON。"
+            "粘贴完整的公开身份 PEM、風铭文本；也兼容旧版 JSON。"
         );
         ButtonType importButton = new ButtonType(
             "导入",
@@ -1267,7 +1342,11 @@ public final class VaultDesktopView implements AutoCloseable {
             ButtonType.CANCEL
         );
         TextArea text = new TextArea();
-        text.setPromptText("{\"format\":\"windletter.public-identity\", ...}");
+        text.setPromptText(
+            "-----BEGIN WINDLETTER PUBLIC IDENTITY-----\n"
+                + "或\n"
+                + "-----風铭 起-----"
+        );
         text.setPrefRowCount(14);
         text.setWrapText(true);
         dialog.getDialogPane().setContent(text);
@@ -1324,17 +1403,6 @@ public final class VaultDesktopView implements AutoCloseable {
         return selected == null ? null : selected.toPath();
     }
 
-    private Path chooseSavePublicIdentity(String displayName) {
-        FileChooser chooser = new FileChooser();
-        chooser.setTitle("导出公开身份");
-        chooser.setInitialFileName(safeFileName(displayName) + ".json");
-        chooser.getExtensionFilters().add(
-            new FileChooser.ExtensionFilter("風笺公开身份 (*.json)", "*.json")
-        );
-        java.io.File selected = chooser.showSaveDialog(stage);
-        return selected == null ? null : selected.toPath();
-    }
-
     private static FileChooser vaultFileChooser(String title) {
         FileChooser chooser = new FileChooser();
         chooser.setTitle(title);
@@ -1342,11 +1410,6 @@ public final class VaultDesktopView implements AutoCloseable {
             new FileChooser.ExtensionFilter("風笺加密保险库 (*.wlv)", "*.wlv")
         );
         return chooser;
-    }
-
-    private static String safeFileName(String displayName) {
-        String safe = displayName.replaceAll("[\\\\/:*?\"<>|]", "_").strip();
-        return safe.isEmpty() ? "WindLetter-public-identity" : safe;
     }
 
     private static RevealablePasswordField passwordField(String prompt) {
@@ -1481,6 +1544,34 @@ public final class VaultDesktopView implements AutoCloseable {
         public String toString() {
             return identity.displayName()
                 + (identity.defaultIdentity() ? " · 原默认身份" : "");
+        }
+    }
+
+    private record PublicIdentityOutputs(
+        String windBase,
+        String base64Pem
+    ) {
+        private String value(PublicIdentityFormatChoice format) {
+            return switch (format) {
+                case WIND_BASE -> windBase;
+                case BASE64_PEM -> base64Pem;
+            };
+        }
+    }
+
+    private enum PublicIdentityFormatChoice {
+        WIND_BASE("風铭（WindBase）"),
+        BASE64_PEM("标准 Base64 PEM");
+
+        private final String label;
+
+        PublicIdentityFormatChoice(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
         }
     }
 

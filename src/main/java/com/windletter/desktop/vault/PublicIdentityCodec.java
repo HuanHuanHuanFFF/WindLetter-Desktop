@@ -28,6 +28,8 @@ final class PublicIdentityCodec {
         Base64.getUrlEncoder().withoutPadding();
     private static final Base64.Decoder DECODER = Base64.getUrlDecoder();
     private static final ObjectMapper MAPPER = createMapper();
+    private final PublicIdentityArmorCodec armor =
+        new PublicIdentityArmorCodec();
 
     String encode(VaultIdentity identity) throws PublicIdentityException {
         Objects.requireNonNull(identity, "identity");
@@ -51,6 +53,21 @@ final class PublicIdentityCodec {
         } catch (IOException | RuntimeException failure) {
             throw new PublicIdentityException();
         }
+    }
+
+    String encodeArmored(
+        VaultIdentity identity,
+        PublicIdentityArmorCodec.Format format
+    ) throws PublicIdentityException {
+        return armor.encode(encode(identity), format);
+    }
+
+    PublicIdentity decodeExchange(String encoded)
+        throws PublicIdentityException {
+        Objects.requireNonNull(encoded, "encoded");
+        return decode(armor.hasExactHeader(encoded)
+            ? armor.decode(encoded)
+            : encoded);
     }
 
     PublicIdentity decode(String encoded) throws PublicIdentityException {

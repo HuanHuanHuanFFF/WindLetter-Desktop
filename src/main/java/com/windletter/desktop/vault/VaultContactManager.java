@@ -34,7 +34,7 @@ final class VaultContactManager {
         String encodedPublicIdentity
     ) throws PublicIdentityException, VaultWriteException {
         Objects.requireNonNull(session, "session");
-        PublicIdentity publicIdentity = publicIdentityCodec.decode(
+        PublicIdentity publicIdentity = publicIdentityCodec.decodeExchange(
             encodedPublicIdentity
         );
         VaultPayload source = session.payload();

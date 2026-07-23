@@ -53,17 +53,39 @@ class PublicIdentityContactManagerTest {
                     .findFirst()
                     .orElseThrow();
 
-                exported = publicIdentities.encode(identity);
+                String rawJson = publicIdentities.encode(identity);
+                String pem = publicIdentities.encodeArmored(
+                    identity,
+                    PublicIdentityArmorCodec.Format.BASE64_PEM
+                );
+                exported = publicIdentities.encodeArmored(
+                    identity,
+                    PublicIdentityArmorCodec.Format.WIND_BASE_1024F_V1
+                );
 
-                assertTrue(exported.contains("给朋友看的身份"));
+                assertTrue(exported.startsWith("-----風铭 起-----\n"));
+                assertFalse(exported.contains("给朋友看的身份"));
                 assertFalse(exported.contains("绝不能公开的本地备注"));
                 assertFalse(exported.contains("privateKey"));
                 assertFalse(exported.contains("identityId"));
                 assertFalse(exported.contains("origin"));
+                assertTrue(pem.startsWith(
+                    "-----BEGIN WINDLETTER PUBLIC IDENTITY-----\n"
+                ));
+                assertEquals(
+                    "给朋友看的身份",
+                    publicIdentities.decodeExchange(pem).displayName()
+                );
 
-                PublicIdentity decoded = publicIdentities.decode(exported);
+                PublicIdentity decoded = publicIdentities.decodeExchange(
+                    exported
+                );
                 assertEquals("给朋友看的身份", decoded.displayName());
                 assertEquals(3, decoded.publicKeys().size());
+                assertEquals(
+                    "给朋友看的身份",
+                    publicIdentities.decodeExchange(rawJson).displayName()
+                );
 
                 contactId = contacts.importAndSave(session, exported);
                 VaultContact contact = session.payload().contacts().get(0);

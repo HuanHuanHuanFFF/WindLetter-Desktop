@@ -48,8 +48,18 @@ class DesktopVaultTest {
             assertTrue(identity.defaultIdentity());
             assertThreeKidFingerprint(identity.fingerprint());
 
-            String publicIdentity = desktopVault.exportPublicIdentity(identityId);
-            assertTrue(publicIdentity.contains("\"displayName\":\"小岚\""));
+            String publicIdentity = desktopVault.exportPublicIdentity(
+                identityId,
+                DesktopVault.PublicIdentityArmor.WIND_BASE_1024F_V1
+            );
+            String pemPublicIdentity = desktopVault.exportPublicIdentity(
+                identityId,
+                DesktopVault.PublicIdentityArmor.BASE64_PEM
+            );
+            assertTrue(publicIdentity.startsWith("-----風铭 起-----\n"));
+            assertTrue(pemPublicIdentity.startsWith(
+                "-----BEGIN WINDLETTER PUBLIC IDENTITY-----\n"
+            ));
             assertFalse(publicIdentity.contains("仅本地身份备注"));
             assertFalse(publicIdentity.contains("privateKey"));
             assertFalse(publicIdentity.contains(identityId.toString()));
@@ -83,7 +93,10 @@ class DesktopVaultTest {
             );
             assertEquals(
                 publicIdentity,
-                desktopVault.exportPublicIdentity(identityId)
+                desktopVault.exportPublicIdentity(
+                    identityId,
+                    DesktopVault.PublicIdentityArmor.WIND_BASE_1024F_V1
+                )
             );
             desktopVault.deleteContact(contactId);
             assertTrue(desktopVault.snapshot().contacts().isEmpty());
