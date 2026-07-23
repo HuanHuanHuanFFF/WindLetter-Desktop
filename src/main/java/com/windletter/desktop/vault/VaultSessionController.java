@@ -50,12 +50,27 @@ final class VaultSessionController implements AutoCloseable {
         requireSession();
         cancelAutoLockTask();
         timerGeneration++;
-        scheduleAutoLock();
+        scheduleAutoLockOrLock();
     }
 
     synchronized VaultSession session() {
         ensureOpen();
         return requireSession();
+    }
+
+    synchronized <T> T use(SessionOperation<T> operation) throws Exception {
+        ensureOpen();
+        Objects.requireNonNull(operation, "operation");
+        VaultSession currentSession = requireSession();
+        cancelAutoLockTask();
+        timerGeneration++;
+        try {
+            return operation.apply(currentSession);
+        } finally {
+            if (!closed && session != null) {
+                scheduleAutoLockOrLock();
+            }
+        }
     }
 
     synchronized boolean isUnlocked() {
@@ -81,6 +96,15 @@ final class VaultSessionController implements AutoCloseable {
         long expectedGeneration = timerGeneration;
         Duration delay = Duration.ofMinutes(session.payload().settings().autoLockMinutes());
         autoLockTask = scheduler.schedule(() -> expire(expectedGeneration), delay);
+    }
+
+    private void scheduleAutoLockOrLock() {
+        try {
+            scheduleAutoLock();
+        } catch (RuntimeException failure) {
+            lockInternal();
+            throw failure;
+        }
     }
 
     private synchronized void expire(long expectedGeneration) {
@@ -118,5 +142,10 @@ final class VaultSessionController implements AutoCloseable {
         if (closed) {
             throw new IllegalStateException("Vault session controller is closed");
         }
+    }
+
+    @FunctionalInterface
+    interface SessionOperation<T> {
+        T apply(VaultSession session) throws Exception;
     }
 }

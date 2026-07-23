@@ -289,7 +289,31 @@ V1 的权衡是：为了迁移单个私钥身份，用户需要持有完整加�
 - 替换会话、主动锁定与控制器关闭均清理对应会话；
 - 完整 `verify` 通过：14 个测试套件、40 个测试，0 failure、0 error、0 skipped。
 
-## 11. 闭环 1 测试先行证据
+## 11. 已完成闭环：JavaFX 安全调用门面
+
+新增公开 `DesktopVault` 作为 JavaFX 与敏感 Vault 实现之间的唯一业务边界：
+
+- JavaFX 只能取得 identity/contact ID、显示名称、备注、来源、默认状态、核验状态和三组完整 KID 指纹；
+- 门面不返回私钥、公钥、KEK、Vault ID、底层 Payload 或 Session；
+- 公开身份导出仍由严格 `PublicIdentityCodec` 完成，note 和本地 ID 不进入公开文件；
+- 所有接收密码的方法消费调用方的 `char[]`，无论成功或失败都在返回前清零；
+- 创建、解锁、恢复、身份导入均调用已有 Vault/核心库实现，不增加第二套加密格式；
+- 备份检查在临时源会话中完成，取出安全视图后立即关闭并清除源私钥与 KEK；
+- 受保护操作通过 `VaultSessionController.use(...)` 串行执行，操作期间暂停计时；结束后重新开始完整自动锁定周期；
+- 如果重新调度自动锁定失败，会立即锁定并清除当前会话，不能保留无定时器的解锁状态；
+- 整库恢复要求当前 Vault 先锁定，避免替换文件后仍持有旧 Vault 的解锁会话。
+
+测试先行证据：
+
+- RED：先新增 `DesktopVaultTest`，聚焦测试只因 `DesktopVault`、安全视图和通用问题类型尚不存在而在 test compilation 失败；
+- 真实生成三算法身份后，安全视图只包含产品元数据和三组 KID，公开导出不含 note、identity ID 或 `privateKey`；
+- 公开身份导入联系人、设置本地名称/note、指纹核验与删除均可通过门面完成；
+- 完整加密备份可检查身份列表、选择导入一个私钥身份，并可在锁定后恢复整库；
+- create、unlock、inspect backup、import identity 和 restore 的密码数组均在方法返回前清零；
+- 错误密码只返回通用解锁失败且无 cause，未锁定时恢复返回明确的安全前置条件；
+- 完整 `verify` 通过：15 个测试套件、43 个测试，0 failure、0 error、0 skipped。
+
+## 12. 闭环 1 测试先行证据
 
 RED：
 
@@ -305,7 +329,7 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 12. 当前安全边界
+## 13. 当前安全边界
 
 - 当前已证明空 Vault 的创建、认证加密、严格解析、Windows 原子保存、锁定、重新解锁、加密备份和验证后恢复；
 - 核心私钥一致性校验已接入所有含 Payload 的保存、解锁和恢复路径，真实三算法身份已在测试临时目录完成加密落盘与重启恢复；
@@ -314,7 +338,7 @@ GREEN：
 - Windows 用户数据目录当前继承 `%APPDATA%` ACL，未额外收紧访问控制是阶段 2 的待评估 P2；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 13. 下一闭环
+## 14. 下一闭环
 
 1. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面；
 2. 将用户活动续期接入受保护界面操作；
