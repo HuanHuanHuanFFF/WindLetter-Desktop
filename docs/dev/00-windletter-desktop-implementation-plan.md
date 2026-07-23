@@ -1,6 +1,6 @@
 # 風笺 · WindLetter Desktop 整体实现计划
 
-- 文档状态：首次审计完成，等待阶段 1 开工确认
+- 文档状态：阶段 1 实现与自动化验证完成，等待交互式 UI smoke 后关闭阶段
 - 审计日期：2026-07-23（Asia/Shanghai）
 - 桌面开发分支：`spike/desktop-v0`
 - 核心库基线：`D:\CodingProject\WindLetter` / `spike/demo-v0` / `15677e77f53cc2b6b8b765d124cd3f5cb1023594`
