@@ -1,11 +1,12 @@
 # 阶段 2 设计：身份、联系人与加密 Vault
 
-- 状态：设计基线已获用户确认；核心私钥导出前置闭环已实现并推送，Vault 代码尚未实现
+- 状态：设计基线已获用户确认；核心私钥导出前置闭环已实现、推送并成为桌面固定基线，Vault 代码尚未实现
 - 日期：2026-07-23（Asia/Shanghai）
 - 桌面起始基线：`spike/desktop-v0` / `3e90b245f0ff8384a7eaa34c199aa5f4066f016c`
 - 核心起始基线：`spike/demo-v0` / `15677e77f53cc2b6b8b765d124cd3f5cb1023594`
 - 核心导出实现：`spike/demo-v0` / `da0414cf97cf171a2df00ca56b493eed77dcae5a`
 - 核心候选固定基线：`spike/demo-v0` / `4a5e9a747148fd05940e7571ff4cc80f014a4127`
+- 桌面采用核心基线：`core-baseline.properties` / `4a5e9a747148fd05940e7571ff4cc80f014a4127`
 
 ## 1. 本阶段新增的真实能力
 
@@ -278,6 +279,7 @@ Java/JVM 无法保证清除所有内部复制；阶段报告必须区分“可�
 - 编码稳定性：公开 RFC 7748、RFC 8032 与 CCTV ML-KEM 向量证明三种已知私钥编码导入后可原样导出；
 - 完整回归：JDK 17 下执行核心 `mvn -q test`，96 个测试套件、933 个测试，0 failure、0 error、0 skipped；
 - 提交与推送：实现 `da0414cf97cf171a2df00ca56b493eed77dcae5a`、编码测试 `4a5e9a747148fd05940e7571ff4cc80f014a4127` 均已推送到 `origin/spike/demo-v0`。
+- 基线接入：桌面准备脚本已按完整 SHA 校验核心仓库、重新运行上述 933 项测试并安装到项目隔离 Maven 仓库；随后桌面 3 个测试套件、5 个测试及 `verify` 全部通过。
 
 ### 9.2 Vault
 
