@@ -14,8 +14,8 @@ import java.util.function.Supplier;
  */
 final class VaultService {
 
-    private static final int MIN_PASSWORD_CODE_POINTS = 12;
-    private static final int MAX_PASSWORD_CODE_POINTS = 1_024;
+    private static final int MIN_PASSWORD_CODE_POINTS = 8;
+    private static final int MAX_PASSWORD_CODE_POINTS = 256;
 
     private final Path vaultPath;
     private final Supplier<VaultKdfCalibration> calibrationSupplier;
@@ -235,7 +235,7 @@ final class VaultService {
         if (codePoints < MIN_PASSWORD_CODE_POINTS
             || codePoints > MAX_PASSWORD_CODE_POINTS) {
             throw new IllegalArgumentException(
-                "password must contain 12 to 1024 Unicode code points"
+                "password must contain 8 to 256 Unicode code points"
             );
         }
     }

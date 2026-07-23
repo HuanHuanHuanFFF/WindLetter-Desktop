@@ -161,14 +161,53 @@ class VaultServiceTest {
     }
 
     @Test
+    void shouldAcceptPasswordsFromEightTo256UnicodeCodePoints() throws Exception {
+        char[] eightSupplementaryCodePoints = "😀".repeat(8).toCharArray();
+        char[] twoHundredFiftySixCodePoints = "密".repeat(256).toCharArray();
+        try {
+            VaultService minimumService = service(
+                directory.resolve("minimum-password-vault.wlv")
+            );
+            try (VaultSession ignored = minimumService.create(
+                eightSupplementaryCodePoints,
+                15
+            )) {
+                assertTrue(Files.exists(
+                    directory.resolve("minimum-password-vault.wlv")
+                ));
+            }
+
+            VaultService maximumService = service(
+                directory.resolve("maximum-password-vault.wlv")
+            );
+            try (VaultSession ignored = maximumService.create(
+                twoHundredFiftySixCodePoints,
+                15
+            )) {
+                assertTrue(Files.exists(
+                    directory.resolve("maximum-password-vault.wlv")
+                ));
+            }
+        } finally {
+            clear(twoHundredFiftySixCodePoints);
+            clear(eightSupplementaryCodePoints);
+        }
+    }
+
+    @Test
     void shouldEnforcePasswordPolicyButKeepOpenFailureGeneric() {
         VaultService service = service(directory.resolve("vault.wlv"));
-        char[] shortPassword = "太短密码".toCharArray();
+        char[] shortPassword = "😀".repeat(7).toCharArray();
+        char[] longPassword = "密".repeat(257).toCharArray();
         char[] nulPassword = "足够长的密码短语\u0000但有空字符".toCharArray();
         try {
             assertThrows(
                 IllegalArgumentException.class,
                 () -> service.create(shortPassword, 15)
+            );
+            assertThrows(
+                IllegalArgumentException.class,
+                () -> service.create(longPassword, 15)
             );
             assertThrows(
                 IllegalArgumentException.class,
@@ -182,6 +221,7 @@ class VaultServiceTest {
             assertNull(openFailure.getCause());
         } finally {
             clear(nulPassword);
+            clear(longPassword);
             clear(shortPassword);
         }
     }

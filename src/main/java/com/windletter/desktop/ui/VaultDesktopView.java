@@ -38,7 +38,6 @@ import javafx.scene.control.Dialog;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
-import javafx.scene.control.PasswordField;
 import javafx.scene.control.ProgressIndicator;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tab;
@@ -186,7 +185,7 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     private void buildUnlockForm(VBox card) {
-        PasswordField password = passwordField("保险库密码");
+        RevealablePasswordField password = passwordField("保险库密码");
         Button unlock = primaryButton("解锁保险库");
         unlock.setDefaultButton(true);
         unlock.setOnAction(event -> {
@@ -229,8 +228,8 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     private void buildCreateForm(VBox card) {
-        PasswordField password = passwordField("至少 12 个字符");
-        PasswordField confirmation = passwordField("再次输入密码");
+        RevealablePasswordField password = passwordField("8–256 个字符");
+        RevealablePasswordField confirmation = passwordField("再次输入密码");
         ComboBox<Integer> autoLock = new ComboBox<>(
             FXCollections.observableArrayList(5, 15, 30, 60)
         );
@@ -274,7 +273,7 @@ public final class VaultDesktopView implements AutoCloseable {
             autoLockRow,
             create,
             boundaryNote(
-                "密码至少 12 个 Unicode 字符。应用不保存密码；忘记密码后，只能使用仍记得密码的完整备份恢复。"
+                "密码须包含 8–256 个 Unicode 字符。应用不保存密码；忘记密码后，只能使用仍记得密码的完整备份恢复。"
             )
         );
     }
@@ -1273,13 +1272,13 @@ public final class VaultDesktopView implements AutoCloseable {
             continueButton,
             ButtonType.CANCEL
         );
-        PasswordField password = passwordField("保险库密码");
+        RevealablePasswordField password = passwordField("保险库密码");
         dialog.getDialogPane().setContent(password);
         Node button = dialog.getDialogPane().lookupButton(continueButton);
         button.disableProperty().bind(password.textProperty().isEmpty());
         dialog.setResultConverter(selected ->
             selected == continueButton
-                ? password.getText().toCharArray()
+                ? password.takePassword()
                 : null);
         Optional<char[]> result = dialog.showAndWait();
         password.clear();
@@ -1331,17 +1330,12 @@ public final class VaultDesktopView implements AutoCloseable {
         return safe.isEmpty() ? "WindLetter-public-identity" : safe;
     }
 
-    private static PasswordField passwordField(String prompt) {
-        PasswordField field = new PasswordField();
-        field.setPromptText(prompt);
-        field.setMaxWidth(Double.MAX_VALUE);
-        return field;
+    private static RevealablePasswordField passwordField(String prompt) {
+        return new RevealablePasswordField(prompt);
     }
 
-    private static char[] takePassword(PasswordField field) {
-        char[] password = field.getText().toCharArray();
-        field.clear();
-        return password;
+    private static char[] takePassword(RevealablePasswordField field) {
+        return field.takePassword();
     }
 
     private static Button primaryButton(String text) {

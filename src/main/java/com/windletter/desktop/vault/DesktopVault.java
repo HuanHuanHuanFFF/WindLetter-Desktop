@@ -105,6 +105,8 @@ public final class DesktopVault implements AutoCloseable {
             sessions.unlock(service.create(password, autoLockMinutes));
         } catch (VaultWriteException failure) {
             throw problem(DesktopVaultProblem.SAVE_FAILED);
+        } catch (IllegalArgumentException failure) {
+            throw problem(DesktopVaultProblem.INVALID_PASSWORD);
         } catch (RuntimeException failure) {
             throw mapRuntime(failure);
         } finally {

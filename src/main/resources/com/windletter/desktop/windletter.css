@@ -128,6 +128,30 @@
     -fx-border-color: #4f7a60;
 }
 
+.revealable-password-field {
+    -fx-spacing: 6px;
+}
+
+.password-reveal-button {
+    -fx-background-color: #eef3ef;
+    -fx-background-radius: 9px;
+    -fx-border-color: #cbd7ce;
+    -fx-border-radius: 9px;
+    -fx-padding: 8px 9px;
+    -fx-cursor: hand;
+    -fx-min-width: 42px;
+    -fx-min-height: 37px;
+}
+
+.password-reveal-button:hover {
+    -fx-background-color: #e1e9e3;
+}
+
+.password-reveal-button:selected {
+    -fx-background-color: #d3e2d8;
+    -fx-border-color: #4f7a60;
+}
+
 .secondary-button {
     -fx-background-color: #e5ece7;
     -fx-background-radius: 9px;

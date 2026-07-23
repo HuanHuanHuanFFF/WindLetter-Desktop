@@ -142,6 +142,27 @@ class DesktopVaultTest {
     }
 
     @Test
+    void shouldExplainTheNewPasswordBoundaryAndClearRejectedInput() {
+        char[] shortPassword = "😀".repeat(7).toCharArray();
+        try (DesktopVault desktopVault = desktopVault(
+            directory.resolve("vault.wlv")
+        )) {
+            DesktopVaultException failure = assertThrows(
+                DesktopVaultException.class,
+                () -> desktopVault.create(shortPassword, 15)
+            );
+
+            assertCleared(shortPassword);
+            assertEquals(DesktopVaultProblem.INVALID_PASSWORD, failure.problem());
+            assertEquals(
+                "密码须包含 8–256 个 Unicode 字符。",
+                failure.getMessage()
+            );
+            assertFalse(desktopVault.exists());
+        }
+    }
+
+    @Test
     void shouldKeepOpenFailuresGenericAndRequireLockedRestore() throws Exception {
         Path vaultPath = directory.resolve("vault.wlv");
         Path backupPath = directory.resolve("backup.wlv");
