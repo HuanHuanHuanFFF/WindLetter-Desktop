@@ -72,6 +72,21 @@ final class VaultFileStore {
         Path target,
         byte[] envelope
     ) throws VaultWriteException {
+        writeAtomically(target, envelope, true);
+    }
+
+    void writeNewAtomically(
+        Path target,
+        byte[] envelope
+    ) throws VaultWriteException {
+        writeAtomically(target, envelope, false);
+    }
+
+    private void writeAtomically(
+        Path target,
+        byte[] envelope,
+        boolean replaceExisting
+    ) throws VaultWriteException {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(envelope, "envelope");
         if (envelope.length == 0 || envelope.length > MAX_ENVELOPE_BYTES) {
@@ -88,6 +103,7 @@ final class VaultFileStore {
 
         byte[] ownedEnvelope = envelope.clone();
         Path temporary = null;
+        boolean emptyReservationCreated = false;
         try {
             Files.createDirectories(parent);
             temporary = Files.createTempFile(
@@ -96,13 +112,19 @@ final class VaultFileStore {
                 ".tmp"
             );
             writeAndFlush(temporary, ownedEnvelope);
+            if (!replaceExisting) {
+                Files.createFile(normalizedTarget);
+                emptyReservationCreated = true;
+            }
             atomicReplacer.replace(temporary, normalizedTarget);
             temporary = null;
+            emptyReservationCreated = false;
         } catch (IOException | RuntimeException failure) {
             throw new VaultWriteException();
         } finally {
             clear(ownedEnvelope);
             deleteTemporary(temporary);
+            deleteEmptyReservation(normalizedTarget, emptyReservationCreated);
         }
     }
 
@@ -152,6 +174,22 @@ final class VaultFileStore {
             Files.deleteIfExists(temporary);
         } catch (IOException ignored) {
             // The temporary file contains only an encrypted envelope.
+        }
+    }
+
+    private static void deleteEmptyReservation(
+        Path target,
+        boolean reservationCreated
+    ) {
+        if (!reservationCreated) {
+            return;
+        }
+        try {
+            if (Files.size(target) == 0) {
+                Files.deleteIfExists(target);
+            }
+        } catch (IOException ignored) {
+            // A failed creation remains safely unusable instead of overwriting data.
         }
     }
 

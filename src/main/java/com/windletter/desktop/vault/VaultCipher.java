@@ -60,29 +60,69 @@ final class VaultCipher {
         char[] password,
         VaultKdfParameters parameters
     ) throws VaultWriteException {
-        Objects.requireNonNull(plaintext, "plaintext");
-        Objects.requireNonNull(vaultId, "vaultId");
         Objects.requireNonNull(password, "password");
         Objects.requireNonNull(parameters, "parameters");
-        if (plaintext.length > MAX_PLAINTEXT_BYTES) {
-            throw new IllegalArgumentException("plaintext exceeds the supported Vault size");
-        }
         if (password.length == 0) {
             throw new IllegalArgumentException("password must not be empty");
+        }
+
+        try (VaultSessionKey sessionKey = deriveSessionKey(password, parameters)) {
+            return seal(plaintext, vaultId, sessionKey);
+        }
+    }
+
+    VaultSessionKey deriveSessionKey(
+        char[] password,
+        VaultKdfParameters parameters
+    ) throws VaultWriteException {
+        Objects.requireNonNull(password, "password");
+        Objects.requireNonNull(parameters, "parameters");
+        if (password.length == 0) {
+            throw new IllegalArgumentException("password must not be empty");
+        }
+
+        byte[] salt = randomBytes(SALT_BYTES);
+        byte[] passwordBytes = null;
+        byte[] key = null;
+        try {
+            passwordBytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password);
+            key = VaultKeyDerivation.derive(passwordBytes, salt, parameters);
+            return new VaultSessionKey(parameters, salt, key);
+        } catch (RuntimeException failure) {
+            throw new VaultWriteException();
+        } finally {
+            clear(key);
+            clear(passwordBytes);
+            clear(salt);
+        }
+    }
+
+    byte[] seal(
+        byte[] plaintext,
+        byte[] vaultId,
+        VaultSessionKey sessionKey
+    ) throws VaultWriteException {
+        Objects.requireNonNull(plaintext, "plaintext");
+        Objects.requireNonNull(vaultId, "vaultId");
+        Objects.requireNonNull(sessionKey, "sessionKey");
+        if (plaintext.length > MAX_PLAINTEXT_BYTES) {
+            throw new IllegalArgumentException("plaintext exceeds the supported Vault size");
         }
         if (vaultId.length != VAULT_ID_BYTES) {
             throw new IllegalArgumentException("vaultId must contain exactly 16 bytes");
         }
 
         byte[] ownedVaultId = vaultId.clone();
-        byte[] salt = randomBytes(SALT_BYTES);
-        byte[] nonce = randomBytes(NONCE_BYTES);
-        byte[] passwordBytes = null;
+        byte[] salt = null;
         byte[] key = null;
+        byte[] nonce = randomBytes(NONCE_BYTES);
         byte[] headerBytes = null;
         byte[] aad = null;
         byte[] ciphertext = null;
         try {
+            VaultKdfParameters parameters = sessionKey.parameters();
+            salt = sessionKey.salt();
+            key = sessionKey.key();
             VaultHeader header = new VaultHeader(
                 FORMAT,
                 FORMAT_VERSION,
@@ -103,8 +143,6 @@ final class VaultCipher {
             }
 
             aad = encodePrefix(headerBytes);
-            passwordBytes = PBEParametersGenerator.PKCS5PasswordToUTF8Bytes(password);
-            key = VaultKeyDerivation.derive(passwordBytes, salt, parameters);
             ciphertext = crypt(Cipher.ENCRYPT_MODE, key, nonce, aad, plaintext);
 
             byte[] envelope = new byte[aad.length + ciphertext.length];
@@ -116,7 +154,6 @@ final class VaultCipher {
         } finally {
             clear(ciphertext);
             clear(key);
-            clear(passwordBytes);
             clear(aad);
             clear(headerBytes);
             clear(nonce);
@@ -138,6 +175,7 @@ final class VaultCipher {
         byte[] key = null;
         byte[] plaintext = null;
         VaultHeader header = null;
+        VaultSessionKey sessionKey = null;
         try {
             ParsedEnvelope parsed = parseEnvelope(ownedEnvelope);
             headerBytes = parsed.headerBytes();
@@ -169,7 +207,17 @@ final class VaultCipher {
                 aad,
                 ciphertext
             );
-            OpenedVault opened = new OpenedVault(header.vaultId(), plaintext);
+            sessionKey = new VaultSessionKey(
+                parameters,
+                header.kdf().salt(),
+                key
+            );
+            OpenedVault opened = new OpenedVault(
+                header.vaultId(),
+                plaintext,
+                sessionKey
+            );
+            sessionKey = null;
             return opened;
         } catch (IOException | GeneralSecurityException | RuntimeException failure) {
             throw new VaultOpenException();
@@ -183,6 +231,9 @@ final class VaultCipher {
             clear(headerBytes);
             clear(ownedEnvelope);
             clearHeader(header);
+            if (sessionKey != null) {
+                sessionKey.close();
+            }
         }
     }
 

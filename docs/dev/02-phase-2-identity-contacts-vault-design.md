@@ -1,6 +1,6 @@
 # 阶段 2 设计：身份、联系人与加密 Vault
 
-- 状态：设计基线已获用户确认；核心私钥导出前置闭环已实现、推送并成为桌面固定基线，Vault 代码尚未实现
+- 状态：设计基线已获用户确认；核心私钥导出和 Vault 底层闭环已实现并推送，阶段 2 服务与界面仍在推进（实时进度见 `03-phase-2-vault-identity-contact-implementation.md`）
 - 日期：2026-07-23（Asia/Shanghai）
 - 桌面起始基线：`spike/desktop-v0` / `3e90b245f0ff8384a7eaa34c199aa5f4066f016c`
 - 核心起始基线：`spike/demo-v0` / `15677e77f53cc2b6b8b765d124cd3f5cb1023594`

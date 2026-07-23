@@ -14,7 +14,7 @@
 - 使用 Bouncy Castle Argon2id 从 `char[]` 密码的 UTF-8 bytes 派生 32-byte KEK；
 - KDF 参数设定硬性上下限，解析不可信 Header 时先校验参数，再执行 Argon2id；
 - 使用 JDK `AES/GCM/NoPadding` 完成 AES-256-GCM 整体 payload 认证加密；
-- 每次 seal 生成新的 16-byte Vault ID、16-byte salt 和 12-byte nonce；
+- 创建时生成新的 16-byte Vault ID 和 16-byte salt；每次 seal 生成新的 12-byte nonce；
 - 物理 Envelope 使用固定 magic、big-endian Header 长度、CBOR Header 和 `ciphertext || tag`；
 - AAD 是 magic、Header 长度和原始 CBOR Header 的完整 bytes；
 - Header parser 开启重复字段检测、未知字段拒绝、尾随 token 拒绝和 primitive null 拒绝；
@@ -23,12 +23,17 @@
 - 调用方拥有解密返回值；派生密码 bytes、KEK、Cipher 临时数组和失败 plaintext 在 finally 中尽力清零；
 - low-level Cipher 和 KDF 参数类型保持 package-private，避免界面或其它包绕过后续 Vault 服务。
 
-未实现：
+该初始闭环当时未实现、后续闭环已补齐：
 
-- 尚未实现 Vault payload schema 编解码；
-- 尚未实现原子文件保存、备份、恢复或用户数据目录；
+- Vault payload schema 编解码见第 3 节；
+- 原子文件保存与备份见第 5 节；
+- 创建、解锁、保存、锁定与恢复服务见第 6 节。
+
+阶段 2 当前仍未实现：
+
+- 最终用户数据目录策略；
 - 尚未生成、导出或落盘任何真实身份私钥；
-- 尚未实现锁定状态机、身份、联系人或 JavaFX 界面。
+- 尚未实现身份、联系人、自动锁定计时器或 JavaFX 界面。
 
 ## 2. 已完成闭环：Argon2id 目标机校准
 
@@ -102,7 +107,7 @@
 - 负向：篡改身份公钥、篡改联系人 KID 均稳定返回通用失败；
 - 完整 `verify` 通过：7 个测试套件、21 个测试，0 failure、0 error、0 skipped。
 
-该校验器已经实现并验证，但尚未接入后续文件解锁服务；在接线完成前不能宣称磁盘 Vault 的私钥一致性已被强制执行。
+该闭环完成时校验器尚未接入文件解锁服务；第 6 节已完成接线，现在所有 `VaultService.open/restore/save` 都强制执行该校验。
 
 ## 5. 已完成闭环：加密 Envelope 原子文件与备份
 
@@ -129,7 +134,47 @@
 
 当前尚未实现目录 fsync 的跨平台保证；Windows 原子移动在目标测试环境已真实通过。断电后的目录项持久性仍作为发布前 P2 记录，不得表述为绝对耐久。
 
-## 6. 闭环 1 测试先行证据
+## 6. 已完成闭环：Vault 创建、解锁、保存、锁定与恢复服务
+
+新增 `VaultService`、`VaultSession` 与 `VaultSessionKey`，强制串联此前的全部安全边界：
+
+```text
+加密文件
+  → Header/KDF 边界检查
+  → Argon2id + AES-GCM
+  → Header/Payload vaultId 比对
+  → 严格 CBOR schema
+  → 核心私钥导入、公钥与 KID 一致性
+  → 解锁会话
+```
+
+实现行为：
+
+- 创建新 Vault 时先执行本机 Argon2id 校准，生成随机 Vault ID 和空 Payload；
+- 创建采用目标空文件占位后原子替换，已有 Vault 不得被静默覆盖；
+- 密码只在创建/解锁时用于 Argon2id，不保存在服务或会话中；
+- 解锁态保存 `VaultSessionKey`：32-byte KEK、16-byte salt 和边界内 KDF 参数；
+- 保存时复用当前 salt/KEK，但每次生成新的 AES-GCM nonce 和新 Envelope；
+- `VaultSession.close()` 先清 Payload 私钥，并在 finally 中保证继续清除 KEK 与 salt；
+- 创建密码要求 12—1024 个 Unicode 码点，拒绝 NUL 和未配对 surrogate；
+- 创建时密码策略错误是本地输入错误；解锁时短密码、错误密码、损坏和结构/密钥失败仍统一为无 cause 的通用解锁失败；
+- 备份只复制认证加密 Envelope；
+- 恢复先完成 AEAD、严格 schema、Vault ID 和核心密钥一致性全链验证，成功后才原子替换当前 Vault；
+- 失败恢复保持当前 Vault bytes 不变。
+
+测试先行证据：
+
+- RED：先新增 `VaultServiceTest`，聚焦测试只因 `VaultService` 和 `VaultSession` 尚不存在而在 test compilation 失败；
+- 创建后清除调用方 password 数组，仍可使用解锁态 KEK 保存；保存前后 Envelope 不同；
+- 锁定后反射检查受控 KEK 数组全部归零，且会话拒绝继续访问；
+- 重启式重新 open 恢复相同 Vault ID 与设置；
+- 错误密码和重复创建均失败，已有 Vault bytes 不变；
+- 损坏备份验证失败不替换当前文件；有效备份可恢复被破坏的当前文件；
+- 完整 `verify` 通过：9 个测试套件、30 个测试，0 failure、0 error、0 skipped。
+
+该服务当前创建的是空 Vault，尚未提供真实身份生成/导入操作；因此本闭环没有把真实私钥写入磁盘。
+
+## 7. 闭环 1 测试先行证据
 
 RED：
 
@@ -145,15 +190,16 @@ GREEN：
 - `.\mvnw.cmd -q -Dtest=VaultCipherTest test` 通过；
 - `.\mvnw.cmd -q verify` 通过：4 个测试套件、9 个测试，0 failure、0 error、0 skipped。
 
-## 7. 当前安全边界
+## 8. 当前安全边界
 
-- 本闭环证明“内存 payload 可以通过版本化 Header、Argon2id 与 AES-256-GCM 认证加密并安全失败”；
-- 它不证明文件写入原子性、备份可恢复、私钥 schema 正确、解锁生命周期或完整阶段 2 可用；
-- 未经后续 payload、文件和状态机测试，不得把实际身份私钥写入用户数据目录；
+- 当前已证明空 Vault 的创建、认证加密、严格解析、Windows 原子保存、锁定、重新解锁、加密备份和验证后恢复；
+- 核心私钥一致性校验已接入所有含 Payload 的保存、解锁和恢复路径，但尚未实现身份操作，因此没有真实身份私钥落盘证据；
+- 自动锁定计时器、最终用户数据目录、身份/联系人业务规则和 JavaFX 流程尚未完成，阶段 2 仍不可宣称完成；
+- Windows `ATOMIC_MOVE` 已实测，跨平台目录 fsync 和进程崩溃恰好发生在创建占位后的恢复体验仍是 P2；
 - Java/JCA/Jackson/Bouncy Castle 内部复制无法由应用保证清零，阶段报告只能声明可控 byte buffer 的 best-effort 清理。
 
-## 8. 下一闭环
+## 9. 下一闭环
 
-1. 建立 create/open/save/lock 服务，强制串联 Cipher、Payload codec 与核心密钥校验；
-2. 实现备份恢复的“先完整验证、后原子替换”服务测试；
-3. 上述闭环通过后，才生成并持久化真实三算法身份密钥。
+1. 实现真实三算法身份生成、导入、选择、删除与公开导出；
+2. 实现联系人公开身份导入、名称/备注和指纹核验状态；
+3. 把 Vault 生命周期、身份与联系人能力接入 JavaFX 阶段 2 界面。
