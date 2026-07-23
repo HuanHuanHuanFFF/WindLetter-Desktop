@@ -77,6 +77,7 @@ public final class VaultDesktopView implements AutoCloseable {
     private char[] pendingPassword;
     private boolean workspaceVisible;
     private DesktopVault.Snapshot snapshot;
+    private TabPane workspaceTabs;
 
     private ListView<DesktopVault.IdentityView> identityList;
     private Label identityName;
@@ -142,6 +143,7 @@ public final class VaultDesktopView implements AutoCloseable {
         snapshot = null;
         identityList = null;
         contactList = null;
+        workspaceTabs = null;
 
         VBox card = new VBox(18);
         card.getStyleClass().add("auth-card");
@@ -280,6 +282,9 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     private void showWorkspace(String message) {
+        int selectedTabIndex = workspaceTabs == null
+            ? -1
+            : workspaceTabs.getSelectionModel().getSelectedIndex();
         try {
             snapshot = vault.snapshot();
         } catch (DesktopVaultException failure) {
@@ -298,6 +303,11 @@ public final class VaultDesktopView implements AutoCloseable {
             tab("协议自检", selfTestPane())
         );
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        workspaceTabs = tabs;
+        if (selectedTabIndex >= 0
+            && selectedTabIndex < tabs.getTabs().size()) {
+            tabs.getSelectionModel().select(selectedTabIndex);
+        }
         workspace.setCenter(tabs);
         BorderPane.setMargin(tabs, new Insets(0, 26, 20, 26));
 
