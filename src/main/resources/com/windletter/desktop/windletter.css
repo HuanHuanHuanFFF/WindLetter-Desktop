@@ -1,0 +1,93 @@
+.app-root {
+    -fx-background-color: linear-gradient(to bottom right, #f8faf8, #edf3ef);
+    -fx-font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+}
+
+.eyebrow {
+    -fx-text-fill: #52715f;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+}
+
+.heading {
+    -fx-text-fill: #17231c;
+    -fx-font-family: "Microsoft YaHei UI", "Segoe UI Semibold", sans-serif;
+    -fx-font-size: 28px;
+    -fx-font-weight: bold;
+}
+
+.introduction {
+    -fx-text-fill: #56635b;
+    -fx-font-size: 14px;
+    -fx-line-spacing: 3px;
+}
+
+.result-card {
+    -fx-background-color: rgba(255, 255, 255, 0.9);
+    -fx-background-radius: 16px;
+    -fx-border-color: #d8e1da;
+    -fx-border-radius: 16px;
+    -fx-border-width: 1px;
+    -fx-padding: 24px;
+    -fx-effect: dropshadow(gaussian, rgba(31, 53, 40, 0.08), 18, 0.15, 0, 6);
+}
+
+.result-success {
+    -fx-border-color: #74a887;
+}
+
+.result-running {
+    -fx-border-color: #8da7ba;
+}
+
+.result-error {
+    -fx-border-color: #d3aaa3;
+}
+
+.result-title {
+    -fx-text-fill: #20362a;
+    -fx-font-size: 20px;
+    -fx-font-weight: bold;
+}
+
+.result-summary {
+    -fx-text-fill: #536158;
+    -fx-font-size: 14px;
+}
+
+.detail-label {
+    -fx-text-fill: #738078;
+    -fx-font-size: 13px;
+}
+
+.detail-value {
+    -fx-text-fill: #24352b;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.primary-button {
+    -fx-background-color: #315f45;
+    -fx-background-radius: 10px;
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-padding: 11px 20px;
+    -fx-cursor: hand;
+}
+
+.primary-button:hover {
+    -fx-background-color: #244d37;
+}
+
+.primary-button:disabled {
+    -fx-opacity: 0.72;
+}
+
+.boundary-note {
+    -fx-background-color: rgba(49, 95, 69, 0.08);
+    -fx-background-radius: 10px;
+    -fx-padding: 12px 14px;
+    -fx-text-fill: #53675a;
+    -fx-font-size: 12px;
+}
