@@ -54,6 +54,7 @@ class VaultDesktopViewNavigationTest {
                         "我的身份",
                         "联系人",
                         "发送",
+                        "接收",
                         "备份与恢复",
                         "协议自检"
                     ),
@@ -69,6 +70,15 @@ class VaultDesktopViewNavigationTest {
                     .lookup("#send-generate-button");
                 assertNotNull(generate);
                 assertTrue(generate.isDisabled());
+
+                originalTabs.getSelectionModel().select(3);
+                Button receive = (Button) originalTabs
+                    .getSelectionModel()
+                    .getSelectedItem()
+                    .getContent()
+                    .lookup("#receive-process-button");
+                assertNotNull(receive);
+                assertTrue(receive.isDisabled());
 
                 originalTabs.getSelectionModel().select(1);
                 assertEquals(

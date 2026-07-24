@@ -78,6 +78,7 @@ public final class VaultDesktopView implements AutoCloseable {
     private boolean workspaceVisible;
     private DesktopVault.Snapshot snapshot;
     private TabPane workspaceTabs;
+    private ReceiveDesktopPane receivePane;
 
     private ListView<DesktopVault.IdentityView> identityList;
     private Label identityName;
@@ -133,11 +134,13 @@ public final class VaultDesktopView implements AutoCloseable {
         if (task != null) {
             task.cancel(true);
         }
+        closeReceivePane();
         clearPendingPassword();
         vault.close();
     }
 
     private void showAuthentication(String message, boolean error) {
+        closeReceivePane();
         workspaceVisible = false;
         lockMonitor.stop();
         snapshot = null;
@@ -282,6 +285,7 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     private void showWorkspace(String message) {
+        closeReceivePane();
         int selectedTabIndex = workspaceTabs == null
             ? -1
             : workspaceTabs.getSelectionModel().getSelectedIndex();
@@ -300,6 +304,7 @@ public final class VaultDesktopView implements AutoCloseable {
             tab("我的身份", identityPane()),
             tab("联系人", contactPane()),
             tab("发送", sendPane()),
+            tab("接收", receivePane()),
             tab("备份与恢复", backupPane()),
             tab("协议自检", selfTestPane())
         );
@@ -350,6 +355,25 @@ public final class VaultDesktopView implements AutoCloseable {
             this::runBusy,
             this::showStatus
         ).build();
+    }
+
+    private Node receivePane() {
+        receivePane = new ReceiveDesktopPane(
+            stage,
+            vault,
+            snapshot,
+            this::runBusy,
+            this::showStatus
+        );
+        return receivePane.build();
+    }
+
+    private void closeReceivePane() {
+        ReceiveDesktopPane current = receivePane;
+        receivePane = null;
+        if (current != null) {
+            current.close();
+        }
     }
 
     private Node identityPane() {
