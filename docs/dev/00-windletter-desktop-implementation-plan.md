@@ -1,6 +1,6 @@
 # 風笺 · WindLetter Desktop 整体实现计划
 
-- 文档状态：阶段 1–4 已完成；阶段 5 已获用户确认并开始开发
+- 文档状态：阶段 1–5 已完成；阶段 5 保留的发布成熟度 P2 见完成报告
 - 审计日期：2026-07-23（Asia/Shanghai）
 - 桌面开发分支：`spike/desktop-v0`
 - 核心库基线：`D:\CodingProject\WindLetter` / `spike/demo-v0` / `4a5e9a747148fd05940e7571ff4cc80f014a4127`
@@ -292,10 +292,10 @@ flowchart LR
 | 等级 | 项目 | 影响 | 处理 |
 |---|---|---|---|
 | 已解决（阶段 2 核心） | 核心 handle 原先无受控私钥导出/序列化 | 无法安全实现持久化、备份和 Hybrid 身份恢复 | `da0414c` 已实现、`4a5e9a7` 已锁定编码并成为桌面固定基线，共 933 tests |
-| P1（当前协作） | GitHub SSH 公钥不可用 | 无法按给定 SSH remote 推送每个闭环 | 用户修复 SSH，或确认使用 HTTPS 凭据推送 |
-| P1（依赖） | 核心仅有 `0.1.0-SNAPSHOT`，未发布 | 普通 Maven 坐标可能漂移，CI 不能直接复现 | 先用完整 SHA 校验 + 隔离本地仓库；发布前改为不可变制品 |
-| P1（阶段 2，设计已冻结） | 公共身份/联系人交换格式原先未定义 | 导入导出可能互不兼容 | 已在阶段 2 设计文档冻结版本化、严格校验的产品层格式；实现和测试尚待完成 |
-| P1（发布） | 核心依赖当前没有稳定 JPMS 模块名 | `jlink` 不能直接把自动模块当正式模块组合 | 阶段 1 走 classpath；阶段 5 验证非模块 `jpackage` 或推动核心模块化 |
+| 已解决（协作） | SSH 公钥原先不可用 | 初期不能按给定 SSH 地址推送 | HTTPS 凭据已可用，阶段闭环均已推送 |
+| P2（依赖） | 核心仅有 `0.1.0-SNAPSHOT`，未发布 | 普通 Maven 坐标可能漂移 | 完整 SHA 校验 + 隔离本地仓库已生效；公开发布前改为不可变制品 |
+| 已解决（阶段 2） | 公共身份/联系人交换格式原先未定义 | 导入导出可能互不兼容 | 已实现并测试严格 Base64 PEM / 風铭交换格式 |
+| 已解决（发布） | 核心没有稳定 JPMS 模块名 | 不能直接组合为正式模块图 | Java 17 非模块 `jpackage` 已生成并真实运行自包含 runtime |
 | P2 | `windletter-api/README.md` 仍称“contracts only” | 新开发者可能误判真实实现状态 | 在核心库后续文档闭环修正，不阻塞阶段 1 |
 | P2 | `DecryptStatus.UNSUPPORTED` 存在但公开 `DecryptResult` 当前禁止该失败形状 | API 认知噪音，桌面错误映射容易误用 | 桌面只按当前可构造结果处理；核心库后续清理/明确契约 |
 
@@ -325,11 +325,13 @@ P2 不能覆盖协议正确性、密码学、安全认证、私钥保护、真�
 
 ## 11. 当前下一步
 
-阶段 5 已获用户确认并开始开发。当前已完成实时发布审计、版本/核心
-基线展示、用户提供 Logo 接入、可复现 app-image 构建和隔离 packaged
-UI smoke。后续继续补齐边界测试、Windows 原生安装器、安装/升级/卸载
-验证、用户说明和发布检查。
+阶段 5 已完成本机 Windows Demo 闭环：用户 Logo、版本/核心基线、
+app-image、MSI、EXE、边界测试、安装、真实收发、重启解锁、卸载和 Vault
+保留均有证据。代码签名、独立 clean-machine 验收和真实跨版本升级作为
+发布成熟度 P2 保留。
 
 阶段 5 实时证据见：
 
 - `docs/dev/09-phase-5-windows-release-implementation.md`
+- `docs/dev/10-phase-5-release-checklist.md`
+- `docs/dev/11-phase-5-completion-report.md`

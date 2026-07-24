@@ -11,6 +11,9 @@ param(
     [string]$CorePath = '',
 
     [Parameter()]
+    [string]$WixBin = '',
+
+    [Parameter()]
     [switch]$SkipCorePreparation
 )
 
@@ -22,8 +25,10 @@ if ([string]::IsNullOrWhiteSpace($CorePath)) {
     $CorePath = Join-Path $desktopRoot '..\WindLetter'
 }
 $targetRoot = Join-Path $desktopRoot 'target'
+$distRoot = Join-Path $desktopRoot 'dist'
 $inputPath = Join-Path $targetRoot 'package-input'
-$destinationPath = Join-Path $targetRoot 'dist'
+$destinationPath = Join-Path $distRoot $Type
+$packageTemp = Join-Path $targetRoot 'jpackage-temp'
 $mainJar = Join-Path $targetRoot 'windletter-desktop.jar'
 $packagedMainJar = Join-Path $inputPath 'windletter-desktop.jar'
 $pomPath = Join-Path $desktopRoot 'pom.xml'
@@ -62,6 +67,18 @@ function Assert-SafeTarget([string]$Path) {
         [StringComparison]::OrdinalIgnoreCase
     )) {
         throw "Refusing to modify a path outside target: $resolvedPath"
+    }
+}
+
+function Assert-SafeDist([string]$Path) {
+    $resolvedDist = [IO.Path]::GetFullPath($distRoot) +
+        [IO.Path]::DirectorySeparatorChar
+    $resolvedPath = [IO.Path]::GetFullPath($Path)
+    if (-not $resolvedPath.StartsWith(
+        $resolvedDist,
+        [StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Refusing to modify a path outside dist: $resolvedPath"
     }
 }
 
@@ -140,7 +157,7 @@ if (-not (Test-Path -LiteralPath $inputPath -PathType Container)) {
 }
 Copy-Item -LiteralPath $mainJar -Destination $packagedMainJar -Force
 
-Assert-SafeTarget $destinationPath
+Assert-SafeDist $destinationPath
 if (Test-Path -LiteralPath $destinationPath) {
     Remove-Item -LiteralPath $destinationPath -Recurse -Force
 }
@@ -158,9 +175,34 @@ $arguments = @(
     '--icon', $iconPath,
     '--main-jar', 'windletter-desktop.jar',
     '--main-class', 'com.windletter.desktop.Launcher',
-    '--java-options', '-Dfile.encoding=UTF-8'
+    '--java-options', '-Dfile.encoding=UTF-8',
+    '--verbose'
 )
 if ($Type -ne 'app-image') {
+    $localWix = Join-Path $desktopRoot '.local-tools\wix314'
+    if ([string]::IsNullOrWhiteSpace($WixBin) -and
+        (Test-Path -LiteralPath $localWix -PathType Container)) {
+        $WixBin = $localWix
+    }
+    if (-not [string]::IsNullOrWhiteSpace($WixBin)) {
+        $resolvedWixBin = (Resolve-Path -LiteralPath $WixBin).Path
+        foreach ($tool in @('candle.exe', 'light.exe')) {
+            if (-not (Test-Path -LiteralPath `
+                (Join-Path $resolvedWixBin $tool) -PathType Leaf)) {
+                throw "WixBin does not contain $tool."
+            }
+        }
+    } else {
+        $candle = Get-Command 'candle.exe' -ErrorAction SilentlyContinue
+        $light = Get-Command 'light.exe' -ErrorAction SilentlyContinue
+        if ($null -eq $candle -or $null -eq $light) {
+            throw (
+                'WiX 3.x is required for Windows installers. ' +
+                'Pass -WixBin or put candle.exe and light.exe on PATH.'
+            )
+        }
+        $resolvedWixBin = Split-Path -Parent $candle.Source
+    }
     $arguments += @(
         '--win-per-user-install',
         '--win-dir-chooser',
@@ -171,6 +213,25 @@ if ($Type -ne 'app-image') {
         'd6e3d392-826c-4a4f-b4db-26f2c832bc34'
     )
 }
-Invoke-Checked $jpackage $arguments $desktopRoot
+$previousPath = $env:PATH
+$previousTemp = $env:TEMP
+$previousTmp = $env:TMP
+try {
+    Assert-SafeTarget $packageTemp
+    if (Test-Path -LiteralPath $packageTemp) {
+        Remove-Item -LiteralPath $packageTemp -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $packageTemp | Out-Null
+    $env:TEMP = $packageTemp
+    $env:TMP = $packageTemp
+    if ($Type -ne 'app-image') {
+        $env:PATH = $resolvedWixBin + [IO.Path]::PathSeparator + $env:PATH
+    }
+    Invoke-Checked $jpackage $arguments $desktopRoot
+} finally {
+    $env:PATH = $previousPath
+    $env:TEMP = $previousTemp
+    $env:TMP = $previousTmp
+}
 
 Write-Host "Created WindLetter $version $Type in $destinationPath"

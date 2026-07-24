@@ -49,8 +49,8 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 
 默认会重新核对并测试固定核心基线，再执行桌面端完整验证。开发期间核心
 已经准备完毕时可以显式使用 `-SkipCorePreparation`。输出位于
-`target\dist\WindLetter`，普通用户运行其中的 `WindLetter.exe` 不需要
-另行安装 Java。
+`dist\app-image\WindLetter`，普通用户运行其中的 `WindLetter.exe`
+不需要另行安装 Java。
 
 在可交互 Windows 会话中验证打包结果：
 
@@ -60,7 +60,38 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 ```
 
 该 smoke 使用隔离的临时 `APPDATA`，创建测试 Vault、运行真实协议收发、
-确认加密文件持久化后关闭应用并删除测试数据，不读取默认用户 Vault。
+确认加密文件持久化、完全退出后重新解锁，最后删除测试数据；它不读取
+默认用户 Vault。
+
+生成 `.msi` / `.exe` 还需要 WiX 3.x。构建脚本会优先使用被 Git
+忽略的 `.local-tools\wix314`，也可通过 `-WixBin` 指定其他目录。当前
+验证基线为 WiX `3.14.1.8722`，官方便携包
+`wix314-binaries.zip` 的 SHA-256 为
+`6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31`。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-package.ps1 `
+  -Type msi `
+  -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\build-windows-package.ps1 `
+  -Type exe `
+  -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+```
+
+制品分别输出到 `dist\msi` 和 `dist\exe`。MSI 全流程验证会拒绝覆盖已有
+WindLetter 安装，使用隔离数据完成安装、真实收发、重启解锁和卸载，并
+确认卸载不会删除加密 Vault：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass `
+  -File .\scripts\smoke-windows-installer.ps1
+```
+
+普通用户说明见 [docs/USER_GUIDE.md](docs/USER_GUIDE.md)，发布门禁见
+[docs/dev/10-phase-5-release-checklist.md](docs/dev/10-phase-5-release-checklist.md)。
 
 接收页复制恢复明文后，如果剪贴板内容未被用户替换，应用会在 60 秒后
 自动清除；锁定、关闭接收页或开始处理下一条消息时也会提前清除。

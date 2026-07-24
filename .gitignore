@@ -1,5 +1,7 @@
 target/
+dist/
 .idea/
 *.iml
 .mvn/repository/
 .windletter/
+.local-tools/

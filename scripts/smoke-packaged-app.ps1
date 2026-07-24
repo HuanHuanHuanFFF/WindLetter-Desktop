@@ -7,6 +7,9 @@ param(
     [int]$TimeoutSeconds = 60,
 
     [Parameter()]
+    [string]$SmokeDataRoot = '',
+
+    [Parameter()]
     [switch]$KeepSmokeData
 )
 
@@ -18,11 +21,23 @@ Add-Type -AssemblyName UIAutomationTypes
 
 $desktopRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if ([string]::IsNullOrWhiteSpace($AppImage)) {
-    $AppImage = Join-Path $desktopRoot 'target\dist\WindLetter'
+    $AppImage = Join-Path $desktopRoot 'dist\app-image\WindLetter'
 }
 $targetRoot = Join-Path $desktopRoot 'target'
 $smokeRoot = Join-Path $targetRoot 'packaged-smoke'
-$sessionRoot = Join-Path $smokeRoot ([guid]::NewGuid().ToString('N'))
+if ([string]::IsNullOrWhiteSpace($SmokeDataRoot)) {
+    $sessionRoot = Join-Path $smokeRoot ([guid]::NewGuid().ToString('N'))
+} else {
+    $sessionRoot = [IO.Path]::GetFullPath($SmokeDataRoot)
+}
+$resolvedTarget = [IO.Path]::GetFullPath($targetRoot) +
+    [IO.Path]::DirectorySeparatorChar
+if (-not $sessionRoot.StartsWith(
+    $resolvedTarget,
+    [StringComparison]::OrdinalIgnoreCase
+)) {
+    throw 'SmokeDataRoot must stay inside the project target directory.'
+}
 $appData = Join-Path $sessionRoot 'appdata'
 $executable = Join-Path (Resolve-Path -LiteralPath $AppImage).Path `
     'WindLetter.exe'
@@ -53,6 +68,12 @@ $selfTestSuccess = [Text.Encoding]::UTF8.GetString(
 )
 $showPassword = [Text.Encoding]::UTF8.GetString(
     [Convert]::FromBase64String('5pi+56S65a+G56CB')
+)
+$unlockHeading = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String('6Kej6ZSB5L2g55qE6aKo56y6')
+)
+$unlockVault = [Text.Encoding]::UTF8.GetString(
+    [Convert]::FromBase64String('6Kej6ZSB5L+d6Zmp5bqT')
 )
 
 function Wait-ForElement(
@@ -143,6 +164,67 @@ function Wait-ForSelectionItem(
     return $null
 }
 
+function Set-VisiblePasswords(
+    [System.Windows.Automation.AutomationElement]$Root,
+    [int]$Count,
+    [string]$Value
+) {
+    $showButtons = $Root.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        (Named-Condition `
+            $showPassword `
+            ([System.Windows.Automation.ControlType]::Button))
+    )
+    if ($showButtons.Count -lt $Count) {
+        throw "Expected $Count password reveal buttons."
+    }
+    for ($index = 0; $index -lt $Count; $index++) {
+        $reveal = $showButtons.Item($index)
+        $toggle =
+            [System.Windows.Automation.TogglePattern]$reveal.GetCurrentPattern(
+                [System.Windows.Automation.TogglePattern]::Pattern
+            )
+        $toggle.Toggle()
+    }
+    Start-Sleep -Milliseconds 500
+
+    $editCondition =
+        [System.Windows.Automation.PropertyCondition]::new(
+            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+            [System.Windows.Automation.ControlType]::Edit
+        )
+    $allEdits = $Root.FindAll(
+        [System.Windows.Automation.TreeScope]::Descendants,
+        $editCondition
+    )
+    $edits = @()
+    for ($index = 0; $index -lt $allEdits.Count; $index++) {
+        $candidate = $allEdits.Item($index)
+        if (-not $candidate.Current.IsPassword -and
+            -not $candidate.Current.IsOffscreen) {
+            $edits += $candidate
+        }
+    }
+    if ($edits.Count -lt $Count) {
+        throw "Expected $Count visible password fields."
+    }
+    for ($index = 0; $index -lt $Count; $index++) {
+        $patternObject = $null
+        if (-not $edits[$index].TryGetCurrentPattern(
+            [System.Windows.Automation.ValuePattern]::Pattern,
+            [ref]$patternObject
+        )) {
+            throw "Visible password field $index is not writable."
+        }
+        $valuePattern =
+            [System.Windows.Automation.ValuePattern]$patternObject
+        $valuePattern.SetValue($Value)
+        if ($valuePattern.Current.Value -ne $Value) {
+            throw "Password field $index did not retain the smoke value."
+        }
+    }
+}
+
 try {
     if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) {
         throw 'The packaged WindLetter executable is missing.'
@@ -172,61 +254,8 @@ try {
         throw 'The isolated first-run page was not shown.'
     }
 
-    $showButtons = $window.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        (Named-Condition `
-            $showPassword `
-            ([System.Windows.Automation.ControlType]::Button))
-    )
-    if ($showButtons.Count -lt 2) {
-        throw 'The two password reveal buttons were not available.'
-    }
-    for ($index = 0; $index -lt 2; $index++) {
-        $reveal = $showButtons.Item($index)
-        $toggle =
-            [System.Windows.Automation.TogglePattern]$reveal.GetCurrentPattern(
-                [System.Windows.Automation.TogglePattern]::Pattern
-            )
-        $toggle.Toggle()
-    }
-    Start-Sleep -Milliseconds 500
-
-    $editCondition =
-        [System.Windows.Automation.PropertyCondition]::new(
-            [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
-            [System.Windows.Automation.ControlType]::Edit
-        )
-    $allEdits = $window.FindAll(
-        [System.Windows.Automation.TreeScope]::Descendants,
-        $editCondition
-    )
-    $edits = @()
-    for ($index = 0; $index -lt $allEdits.Count; $index++) {
-        $candidate = $allEdits.Item($index)
-        if (-not $candidate.Current.IsPassword -and
-            -not $candidate.Current.IsOffscreen) {
-            $edits += $candidate
-        }
-    }
-    if ($edits.Count -lt 2) {
-        throw 'The two new-vault password fields were not available.'
-    }
-    $testPassword = 'windlettersmoke2026'
-    for ($index = 0; $index -lt 2; $index++) {
-        $edit = $edits[$index]
-        $patternObject = $null
-        if (-not $edit.TryGetCurrentPattern(
-            [System.Windows.Automation.ValuePattern]::Pattern,
-            [ref]$patternObject
-        )) {
-            throw "Visible password field $index is not writable."
-        }
-        $value = [System.Windows.Automation.ValuePattern]$patternObject
-        $value.SetValue($testPassword)
-        if ($value.Current.Value -ne $testPassword) {
-            throw "Password field $index did not retain the smoke value."
-        }
-    }
+    $testPassword = 'WL-' + [guid]::NewGuid().ToString('N')
+    Set-VisiblePasswords $window 2 $testPassword
     Invoke-Button $window $createAndUnlock
 
     $selection = Wait-ForSelectionItem `
@@ -254,9 +283,51 @@ try {
         throw 'The isolated encrypted vault was not persisted.'
     }
 
+    $firstWindowPattern =
+        [System.Windows.Automation.WindowPattern]$window.GetCurrentPattern(
+            [System.Windows.Automation.WindowPattern]::Pattern
+        )
+    $firstWindowPattern.Close()
+    if (-not $process.WaitForExit(10000)) {
+        throw 'The first packaged process did not exit after closing.'
+    }
+    $window = $null
+    $process = $null
+
+    $process = Start-Process -FilePath $executable -PassThru
+    $window = Wait-ForElement `
+        ([System.Windows.Automation.AutomationElement]::RootElement) `
+        ([System.Windows.Automation.TreeScope]::Children) `
+        (Named-Condition `
+            $windowTitle `
+            ([System.Windows.Automation.ControlType]::Window)) `
+        $TimeoutSeconds
+    if ($null -eq $window) {
+        throw 'The restarted packaged WindLetter window did not appear.'
+    }
+    $unlockPage = Wait-ForElement `
+        $window `
+        ([System.Windows.Automation.TreeScope]::Descendants) `
+        (Named-Condition `
+            $unlockHeading `
+            ([System.Windows.Automation.ControlType]::Text)) `
+        $TimeoutSeconds
+    if ($null -eq $unlockPage) {
+        throw 'Restart did not show the encrypted vault unlock page.'
+    }
+    Set-VisiblePasswords $window 1 $testPassword
+    Invoke-Button $window $unlockVault
+    $restartWorkspace = Wait-ForSelectionItem `
+        $window `
+        $selfTestTab `
+        $TimeoutSeconds
+    if ($null -eq $restartWorkspace) {
+        throw 'The persisted vault did not unlock after restart.'
+    }
+
     Write-Host (
         'Packaged UI smoke passed: isolated vault creation, ' +
-        'real protocol send/receive, and persistence succeeded.'
+        'real protocol send/receive, persistence, restart, and unlock succeeded.'
     )
 } finally {
     if ($null -ne $window) {
@@ -278,8 +349,6 @@ try {
     }
     $env:APPDATA = $previousAppData
     if (-not $KeepSmokeData -and (Test-Path -LiteralPath $sessionRoot)) {
-        $resolvedTarget = [IO.Path]::GetFullPath($targetRoot) +
-            [IO.Path]::DirectorySeparatorChar
         $resolvedSession = [IO.Path]::GetFullPath($sessionRoot)
         if (-not $resolvedSession.StartsWith(
             $resolvedTarget,
