@@ -1,6 +1,6 @@
 # 風笺 · WindLetter Desktop
 
-WindLetter 的 JavaFX 桌面客户端。阶段 1、2 已完成；阶段 3 正在开发，当前已接入真实 Vault 发送业务层和完整发送页。
+WindLetter 的 JavaFX 桌面客户端。阶段 1–3 已完成：真实核心收发基线、加密保险库、身份和联系人管理，以及完整真实发送界面。
 
 ## 开发环境
 
