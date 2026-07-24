@@ -2,6 +2,7 @@ package com.windletter.desktop.ui;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.windletter.desktop.vault.DesktopVault;
@@ -11,7 +12,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
+import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.Label;
 import javafx.scene.control.TabPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,6 +51,10 @@ class VaultDesktopViewNavigationTest {
             VaultDesktopView view = new VaultDesktopView(stage, vault);
             try {
                 view.show();
+                assertEquals(1, stage.getIcons().size());
+                assertEquals(256, stage.getIcons().get(0).getWidth());
+                assertEquals(256, stage.getIcons().get(0).getHeight());
+                Scene originalScene = stage.getScene();
                 TabPane originalTabs = tabPane(stage);
                 assertEquals(
                     java.util.List.of(
@@ -79,6 +86,14 @@ class VaultDesktopViewNavigationTest {
                     .lookup("#receive-process-button");
                 assertNotNull(receive);
                 assertTrue(receive.isDisabled());
+                Label version = (Label) stage.getScene().lookup(
+                    "#application-version"
+                );
+                assertNotNull(version);
+                assertEquals(
+                    "版本 0.1.0 · 核心 4a5e9a7",
+                    version.getText()
+                );
 
                 originalTabs.getSelectionModel().select(1);
                 assertEquals(
@@ -96,6 +111,7 @@ class VaultDesktopViewNavigationTest {
                 refresh.invoke(view, "联系人已刷新。");
 
                 TabPane refreshedTabs = tabPane(stage);
+                assertSame(originalScene, stage.getScene());
                 assertEquals(
                     "联系人",
                     refreshedTabs.getSelectionModel()

@@ -1,5 +1,7 @@
 package com.windletter.desktop.ui;
 
+import com.windletter.desktop.ApplicationInfo;
+import com.windletter.desktop.ApplicationBranding;
 import com.windletter.desktop.WindLetterApplication;
 import com.windletter.desktop.selftest.RoundTripSelfTestService;
 import com.windletter.desktop.vault.DesktopVault;
@@ -116,6 +118,7 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     public void show() {
+        ApplicationBranding.applyTo(stage);
         stage.setTitle(WindLetterApplication.WINDOW_TITLE);
         stage.setMinWidth(820);
         stage.setMinHeight(650);
@@ -181,7 +184,7 @@ public final class VaultDesktopView implements AutoCloseable {
         path.setWrapText(true);
         path.setMaxWidth(Double.MAX_VALUE);
         path.setMinHeight(Region.USE_PREF_SIZE);
-        card.getChildren().add(path);
+        card.getChildren().addAll(path, applicationVersion());
 
         BorderPane page = page(centered(card));
         showScene(page, 900, 700);
@@ -332,7 +335,7 @@ public final class VaultDesktopView implements AutoCloseable {
         );
         state.getStyleClass().add("workspace-state");
 
-        VBox titles = new VBox(3, product, state);
+        VBox titles = new VBox(3, product, state, applicationVersion());
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
         Button lock = secondaryButton("立即锁定");
@@ -345,6 +348,13 @@ public final class VaultDesktopView implements AutoCloseable {
         header.getStyleClass().add("workspace-header");
         header.setAlignment(Pos.CENTER_LEFT);
         return header;
+    }
+
+    private static Label applicationVersion() {
+        Label version = new Label(ApplicationInfo.compactLabel());
+        version.setId("application-version");
+        version.getStyleClass().add("path-note");
+        return version;
     }
 
     private Node sendPane() {
@@ -1217,6 +1227,17 @@ public final class VaultDesktopView implements AutoCloseable {
     }
 
     private void showScene(Parent root, double width, double height) {
+        Scene current = stage.getScene();
+        if (current != null) {
+            current.setRoot(root);
+            if (stage.getWidth() < width) {
+                stage.setWidth(width);
+            }
+            if (stage.getHeight() < height) {
+                stage.setHeight(height);
+            }
+            return;
+        }
         Scene scene = new Scene(root, width, height);
         URL stylesheet = Objects.requireNonNull(
             WindLetterApplication.class.getResource("windletter.css"),

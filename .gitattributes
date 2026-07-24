@@ -5,3 +5,5 @@ mvnw text eol=lf
 *.java text eol=lf
 *.xml text eol=lf
 *.md text eol=lf
+assets/*.svg text eol=lf
+*.properties text eol=lf
