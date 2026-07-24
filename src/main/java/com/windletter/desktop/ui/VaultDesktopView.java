@@ -299,6 +299,7 @@ public final class VaultDesktopView implements AutoCloseable {
         TabPane tabs = new TabPane(
             tab("我的身份", identityPane()),
             tab("联系人", contactPane()),
+            tab("发送", sendPane()),
             tab("备份与恢复", backupPane()),
             tab("协议自检", selfTestPane())
         );
@@ -339,6 +340,16 @@ public final class VaultDesktopView implements AutoCloseable {
         header.getStyleClass().add("workspace-header");
         header.setAlignment(Pos.CENTER_LEFT);
         return header;
+    }
+
+    private Node sendPane() {
+        return new SendDesktopPane(
+            stage,
+            vault,
+            snapshot,
+            this::runBusy,
+            this::showStatus
+        ).build();
     }
 
     private Node identityPane() {

@@ -188,6 +188,55 @@ class VaultSendServiceTest {
         }
     }
 
+    @Test
+    void shouldSendOneMessageToMultipleRealRecipients() throws Exception {
+        RecipientSetup first = createRecipient(
+            directory.resolve("recipient-one.wlv"),
+            "收件人一"
+        );
+        RecipientSetup second = createRecipient(
+            directory.resolve("recipient-two.wlv"),
+            "收件人二"
+        );
+        Path senderPath = directory.resolve("multi-sender.wlv");
+        byte[] payload = "同一条多收件人消息".getBytes(StandardCharsets.UTF_8);
+        try (DesktopVault sender = desktopVault(senderPath)) {
+            sender.create(password(), 15);
+            UUID senderId = sender.createIdentity("发送者", null);
+            String senderPublicIdentity = sender.exportPublicIdentity(
+                senderId,
+                DesktopVault.PublicIdentityArmor.BASE64_PEM
+            );
+            UUID firstContact = sender.importContact(first.publicIdentity());
+            UUID secondContact = sender.importContact(second.publicIdentity());
+
+            SendResult result = sender.send(new SendRequest(
+                senderId,
+                List.of(firstContact, secondContact),
+                SendMode.OBFUSCATION,
+                SendKeyProfile.X25519_ML_KEM_768,
+                true,
+                SendOutputFormat.BINARY,
+                new SendPayload("application/octet-stream", payload)
+            ));
+
+            for (RecipientSetup recipient : List.of(first, second)) {
+                DecryptResult decrypted = decrypt(
+                    recipient.path(),
+                    recipient.identityId(),
+                    senderPublicIdentity,
+                    result
+                );
+                assertEquals(DecryptStatus.SUCCESS, decrypted.status());
+                assertEquals(
+                    VerificationStatus.SIGNED_VALID,
+                    decrypted.verificationStatus()
+                );
+                assertArrayEquals(payload, decrypted.payload().data());
+            }
+        }
+    }
+
     private DecryptResult decrypt(
         Path recipientPath,
         UUID recipientIdentityId,
@@ -243,6 +292,22 @@ class VaultSendServiceTest {
     ) {
         int selector = mode.ordinal() + profile.ordinal() + (signed ? 1 : 0);
         return SendOutputFormat.values()[selector % SendOutputFormat.values().length];
+    }
+
+    private RecipientSetup createRecipient(Path path, String displayName)
+        throws Exception {
+        try (DesktopVault recipient = desktopVault(path)) {
+            recipient.create(password(), 15);
+            UUID identityId = recipient.createIdentity(displayName, null);
+            return new RecipientSetup(
+                path,
+                identityId,
+                recipient.exportPublicIdentity(
+                    identityId,
+                    DesktopVault.PublicIdentityArmor.BASE64_PEM
+                )
+            );
+        }
     }
 
     private static DesktopVault desktopVault(Path path) {
@@ -470,5 +535,12 @@ class VaultSendServiceTest {
                 Arrays.fill(value, (byte) 0);
             }
         }
+    }
+
+    private record RecipientSetup(
+        Path path,
+        UUID identityId,
+        String publicIdentity
+    ) {
     }
 }

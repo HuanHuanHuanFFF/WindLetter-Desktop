@@ -11,6 +11,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import javafx.application.Platform;
+import javafx.scene.control.Button;
 import javafx.scene.control.TabPane;
 import javafx.stage.Stage;
 import org.junit.jupiter.api.BeforeAll;
@@ -48,6 +49,27 @@ class VaultDesktopViewNavigationTest {
             try {
                 view.show();
                 TabPane originalTabs = tabPane(stage);
+                assertEquals(
+                    java.util.List.of(
+                        "我的身份",
+                        "联系人",
+                        "发送",
+                        "备份与恢复",
+                        "协议自检"
+                    ),
+                    originalTabs.getTabs().stream()
+                        .map(tab -> tab.getText())
+                        .toList()
+                );
+                originalTabs.getSelectionModel().select(2);
+                Button generate = (Button) originalTabs
+                    .getSelectionModel()
+                    .getSelectedItem()
+                    .getContent()
+                    .lookup("#send-generate-button");
+                assertNotNull(generate);
+                assertTrue(generate.isDisabled());
+
                 originalTabs.getSelectionModel().select(1);
                 assertEquals(
                     "联系人",
