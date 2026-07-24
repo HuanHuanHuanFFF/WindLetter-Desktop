@@ -1,5 +1,8 @@
 package com.windletter.desktop.vault;
 
+import com.windletter.desktop.send.SendRequest;
+import com.windletter.desktop.send.SendResult;
+
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
@@ -31,6 +34,7 @@ public final class DesktopVault implements AutoCloseable {
     private final VaultIdentityManager identities;
     private final PublicIdentityCodec publicIdentities;
     private final VaultContactManager contacts;
+    private final VaultSendService sender;
     private final VaultSessionController sessions;
 
     public DesktopVault() {
@@ -76,6 +80,7 @@ public final class DesktopVault implements AutoCloseable {
             publicIdentities,
             clock
         );
+        this.sender = new VaultSendService();
         this.sessions = new VaultSessionController(
             Objects.requireNonNull(scheduler, "scheduler")
         );
@@ -241,6 +246,17 @@ public final class DesktopVault implements AutoCloseable {
             contacts.deleteAndSave(session, contactId);
             return null;
         });
+    }
+
+    public SendResult send(SendRequest request)
+        throws DesktopVaultException {
+        try {
+            return sessions.use(session -> sender.send(session, request));
+        } catch (IllegalStateException failure) {
+            throw problem(DesktopVaultProblem.LOCKED);
+        } catch (Exception failure) {
+            throw problem(DesktopVaultProblem.SEND_FAILED);
+        }
     }
 
     public void backup(Path backupPath) throws DesktopVaultException {
