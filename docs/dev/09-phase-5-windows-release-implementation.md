@@ -48,6 +48,7 @@ Windows `.exe` / `.msi` 需要 WiX 3.0 或更高版本。
 - 构建元数据与 `core-baseline.properties` 不一致时拒绝打包；
 - 用户提供的 `E:\Download\windletter.svg` 已作为
   `assets/windletter.svg` 品牌源文件；
+- SVG 路径与颜色保持不变，仅将画布裁到主体边界并按方形图标满铺；
 - 同源生成 256×256 JavaFX PNG 和多尺寸 Windows ICO；
 - JavaFX Stage 左上角图标和 `jpackage --icon` 使用同一 Logo；
 - Maven 固定 JAR / dependency 插件，收集完整 runtime classpath；

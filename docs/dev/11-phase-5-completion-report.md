@@ -27,8 +27,8 @@
 ### 品牌与版本
 
 - 品牌源文件：`assets/windletter.svg`；
-- JavaFX Stage：同源 256×256 PNG；
-- Windows launcher / installer：同源多尺寸 ICO；
+- JavaFX Stage：同源满铺 256×256 PNG；
+- Windows launcher / installer：同源满铺多尺寸 ICO；
 - 界面展示应用版本 `0.1.0` 与核心短提交 `4a5e9a7`。
 
 ### 自包含发布
@@ -72,9 +72,9 @@
 - app-image packaged UI smoke：通过；
 - 最终 MSI install / real send-receive / restart / unlock / uninstall：通过；
 - 卸载保留加密 Vault：通过；
-- app-image：155,203,188 bytes / 371 files；
-- MSI：68,120,836 bytes；
-- EXE：68,716,544 bytes。
+- app-image：155,212,400 bytes / 371 files；
+- MSI：68,129,028 bytes；
+- EXE：68,727,808 bytes。
 
 自动化 Payload 证据包括：
 

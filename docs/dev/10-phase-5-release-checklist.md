@@ -13,7 +13,7 @@
 | 严格解析、路由、binding、验签 | 通过 | 阶段 4 真实正负向矩阵与阶段 5 packaged smoke |
 | 失败不误报成功 | 通过 | 只有核心 `SUCCESS` 展示 payload |
 | Java 17 自包含运行时 | 通过 | app-image 内含私有 runtime，无需外部 Java |
-| 应用和安装器 Logo | 通过 | 用户 SVG 同源生成 JavaFX PNG 与 Windows ICO |
+| 应用和安装器 Logo | 通过 | 用户 SVG 路径不变，满铺生成 JavaFX PNG 与 Windows ICO |
 | MSI 生成与 WiX ICE | 通过 | WiX `3.14.1.8722`，`light.exe` 返回 0 |
 | 安装与启动 | 通过 | per-user MSI 静默安装后启动已安装 `WindLetter.exe` |
 | 真实收发与重启解锁 | 通过 | 隔离 APPDATA 创建 Vault、真实收发、退出、重启、解锁 |
@@ -27,9 +27,9 @@
 
 | 制品 | 大小 | SHA-256 |
 | --- | ---: | --- |
-| `dist/exe/WindLetter-0.1.0.exe` | 68,716,544 bytes | `7D129FF047120227060F9B5FF568487C8CE6E995688B7ED90566E0ABCDED0781` |
-| `dist/msi/WindLetter-0.1.0.msi` | 68,120,836 bytes | `CF7FA598B03ACE1F0F1FD01CD2884147F005095709C869218F9AC8301734050A` |
-| `dist/app-image/WindLetter` | 155,203,188 bytes / 371 files | 目录制品，不使用单文件哈希 |
+| `dist/exe/WindLetter-0.1.0.exe` | 68,727,808 bytes | `47F4948767CF55FE90C6BDD3CD28F431D6ED459EEFB9DCB3B42755D6655DEF2D` |
+| `dist/msi/WindLetter-0.1.0.msi` | 68,129,028 bytes | `D98C1869F14A182206745DC164FAFDEF32919DFDA67DAE77EA9FA13B611CA12F` |
+| `dist/app-image/WindLetter` | 155,212,400 bytes / 371 files | 目录制品，不使用单文件哈希 |
 
 当前 EXE 和 MSI 均为 `NotSigned`，不能把以上哈希用于未来重建制品。
 
