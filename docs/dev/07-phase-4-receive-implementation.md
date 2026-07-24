@@ -61,7 +61,7 @@
 
 ## 4. 闭环 1：真实 Vault 接收业务层
 
-状态：已实现，待本闭环提交推送。
+状态：已实现并提交推送（`85ed025`）。
 
 新增：
 
@@ -91,9 +91,36 @@ TDD 证据：
    `INVALID_MESSAGE`；不依赖发送者身份的 unsigned obfuscation
    仍能成功，证明没有把联系人信任错误扩张到 unsigned。
 
-## 5. 后续闭环
+## 5. 闭环 2：完整 JavaFX 接收页
 
-1. 独立 JavaFX 接收页与后台任务接线；
-2. 严格 UTF-8 文本预览、二进制提示和原始 payload 保存；
-3. 生产 View 正负流程、导航与错误恢复测试；
-4. 阶段 4 完成报告和剩余 P2。
+状态：已实现并提交推送（`5bdf844`）。
+
+新增：
+
+- 主工作区独立“接收”标签；
+- 本地身份选择、精确文本粘贴和 binary 文件导入；
+- 通过主 View 的 JavaFX 后台任务执行真实接收；
+- signed valid、指纹核对状态、unsigned 和发送者信息的独立展示；
+- `NOT_FOR_ME` 与 `INVALID_MESSAGE` 的稳定中文状态；
+- MIME + 严格 UTF-8 文本预览；
+- 任意成功 payload 的原始字节保存；
+- payload 结果的显式所有权和 `close()` 清理；
+- 新结果、失败、锁定、切换工作区或关闭页面时清除旧结果。
+
+TDD 与验证证据：
+
+1. RED：导航测试在“接收”标签和处理按钮尚不存在时失败；
+2. RED：严格文本预览、payload 写入和可关闭结果模型的测试先因类型
+   不存在或缺少 `close()` 失败；
+3. GREEN：同步组件测试从真实 WindBase signed Hybrid 消息恢复
+   Unicode 文本并展示签名与已核对联系人；
+4. 处理截断消息后，上一条成功明文立即从界面和结果所有者中清除；
+5. 生产 `VaultDesktopView` 测试从真实“接收”标签启动后台任务并在
+   JavaFX 线程展示解密结果；
+6. 文本输入保持逐字符不变，binary 输入保持逐字节不变，空 binary
+   在进入核心前拒绝；
+7. 篡改真实 signed Hybrid binary 消息只得到无 payload 的
+   `INVALID_MESSAGE`。
+
+阶段结论、最终测试数字和剩余 P2 见
+`docs/dev/08-phase-4-completion-report.md`。

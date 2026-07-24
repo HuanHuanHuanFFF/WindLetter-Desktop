@@ -282,6 +282,60 @@ class VaultReceiveServiceTest {
     }
 
     @Test
+    void shouldRejectTamperedBinaryWithoutExposingPlaintext()
+        throws Exception {
+        try (
+            DesktopVault sender = new DesktopVault(
+                directory.resolve("tamper-sender.wlv")
+            );
+            DesktopVault recipient = new DesktopVault(
+                directory.resolve("tamper-recipient.wlv")
+            )
+        ) {
+            sender.create("发送方安全测试密码".toCharArray(), 15);
+            recipient.create("接收方安全测试密码".toCharArray(), 15);
+            UUID senderId = sender.createIdentity("篡改测试发送者", null);
+            UUID recipientId = recipient.createIdentity(
+                "篡改测试接收者",
+                null
+            );
+            UUID recipientContact = sender.importContact(
+                recipient.exportPublicIdentity(
+                    recipientId,
+                    DesktopVault.PublicIdentityArmor.BASE64_PEM
+                )
+            );
+            recipient.importContact(sender.exportPublicIdentity(
+                senderId,
+                DesktopVault.PublicIdentityArmor.BASE64_PEM
+            ));
+            SendResult encrypted = sender.send(new SendRequest(
+                senderId,
+                List.of(recipientContact),
+                SendMode.PUBLIC,
+                SendKeyProfile.X25519_ML_KEM_768,
+                true,
+                SendOutputFormat.BINARY,
+                new SendPayload(
+                    "text/plain",
+                    "绝不能从被篡改消息恢复".getBytes(
+                        StandardCharsets.UTF_8
+                    )
+                )
+            ));
+
+            byte[] tampered = encrypted.binary();
+            tampered[tampered.length - 1] ^= 1;
+            ReceiveResult result = recipient.receive(ReceiveInput.binary(
+                recipientId,
+                tampered
+            ));
+
+            assertFailure(ReceiveStatus.INVALID_MESSAGE, result);
+        }
+    }
+
+    @Test
     void shouldKeepLocalReceiveFailuresGenericAndDistinguishLockedVault()
         throws Exception {
         try (DesktopVault vault = new DesktopVault(

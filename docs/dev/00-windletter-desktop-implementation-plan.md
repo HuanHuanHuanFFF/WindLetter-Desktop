@@ -1,6 +1,6 @@
 # 風笺 · WindLetter Desktop 整体实现计划
 
-- 文档状态：阶段 1–3 已完成；阶段 4 已获用户确认并开始开发
+- 文档状态：阶段 1–4 已完成；等待用户确认是否进入阶段 5
 - 审计日期：2026-07-23（Asia/Shanghai）
 - 桌面开发分支：`spike/desktop-v0`
 - 核心库基线：`D:\CodingProject\WindLetter` / `spike/demo-v0` / `4a5e9a747148fd05940e7571ff4cc80f014a4127`
@@ -325,12 +325,13 @@ P2 不能覆盖协议正确性、密码学、安全认证、私钥保护、真�
 
 ## 11. 当前下一步
 
-阶段 3 已完成并经用户确认，当前进入阶段 4：
+阶段 4 已完成。真实 Vault 接收门面、独立 JavaFX 接收页、精确文本
+自动路由、binary 导入、payload 预览/保存、认证展示和无 payload
+失败边界均已接入并验证。
 
-1. 保持核心基线 `4a5e9a7` 和 Vault schema 不变；
-2. 先建立 Vault 到真实核心接收门面的业务层；
-3. 再接入独立 JavaFX 接收页、文本自动路由和 binary 导入；
-4. 完成真实正负矩阵、Windows JavaFX smoke 和阶段 4 报告后停下。
+按照大阶段确认规则，当前停在阶段 4 门禁，不自动进入阶段 5。用户确认
+后才开始 Windows 打包、完整人工验收、大消息/Unicode/剪贴板边界和
+发布检查。阶段 4 证据见：
 
-阶段 4 实时范围和闭环记录见
-`docs/dev/07-phase-4-receive-implementation.md`。
+- `docs/dev/07-phase-4-receive-implementation.md`
+- `docs/dev/08-phase-4-completion-report.md`
