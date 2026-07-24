@@ -6,6 +6,7 @@ public enum DesktopVaultProblem {
     INVALID_PASSWORD("密码须包含 8–256 个 Unicode 字符。"),
     INVALID_PUBLIC_IDENTITY("无法导入该公开身份。文件无效或已损坏。"),
     SEND_FAILED("无法生成消息。请检查发送身份、收件人和消息设置。"),
+    RECEIVE_FAILED("无法处理该消息。请检查输入和所选收件身份。"),
     INVALID_INPUT("输入无效、条目不存在或已重复。"),
     LOCKED("保险库已锁定，请重新解锁。"),
     LOCK_BEFORE_RESTORE("恢复备份前请先锁定当前保险库。");

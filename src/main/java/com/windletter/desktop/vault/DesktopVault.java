@@ -2,6 +2,8 @@ package com.windletter.desktop.vault;
 
 import com.windletter.desktop.send.SendRequest;
 import com.windletter.desktop.send.SendResult;
+import com.windletter.desktop.receive.ReceiveInput;
+import com.windletter.desktop.receive.ReceiveResult;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,6 +37,7 @@ public final class DesktopVault implements AutoCloseable {
     private final PublicIdentityCodec publicIdentities;
     private final VaultContactManager contacts;
     private final VaultSendService sender;
+    private final VaultReceiveService receiver;
     private final VaultSessionController sessions;
 
     public DesktopVault() {
@@ -81,6 +84,7 @@ public final class DesktopVault implements AutoCloseable {
             clock
         );
         this.sender = new VaultSendService();
+        this.receiver = new VaultReceiveService();
         this.sessions = new VaultSessionController(
             Objects.requireNonNull(scheduler, "scheduler")
         );
@@ -256,6 +260,21 @@ public final class DesktopVault implements AutoCloseable {
             throw problem(DesktopVaultProblem.LOCKED);
         } catch (Exception failure) {
             throw problem(DesktopVaultProblem.SEND_FAILED);
+        }
+    }
+
+    public ReceiveResult receive(ReceiveInput input)
+        throws DesktopVaultException {
+        try {
+            return sessions.use(session -> receiver.receive(session, input));
+        } catch (IllegalStateException failure) {
+            throw problem(
+                sessions.isUnlocked()
+                    ? DesktopVaultProblem.RECEIVE_FAILED
+                    : DesktopVaultProblem.LOCKED
+            );
+        } catch (Exception failure) {
+            throw problem(DesktopVaultProblem.RECEIVE_FAILED);
         }
     }
 
