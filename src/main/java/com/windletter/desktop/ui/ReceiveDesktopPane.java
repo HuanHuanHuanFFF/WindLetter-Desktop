@@ -26,8 +26,6 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleGroup;
-import javafx.scene.input.Clipboard;
-import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
@@ -36,6 +34,7 @@ import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -64,6 +63,8 @@ final class ReceiveDesktopPane implements AutoCloseable {
     private final ReceiveRunner runner;
     private final StatusSink status;
     private final ReceivePayloadWriter writer = new ReceivePayloadWriter();
+    private final SensitiveClipboard clipboard =
+        SensitiveClipboard.system(Duration.seconds(60));
     private final ObjectProperty<Path> selectedFile =
         new SimpleObjectProperty<>();
 
@@ -124,6 +125,7 @@ final class ReceiveDesktopPane implements AutoCloseable {
         }
         closed = true;
         clearResult("接收页已关闭。");
+        clipboard.close();
         armorText.clear();
         selectedFile.set(null);
     }
@@ -402,6 +404,7 @@ final class ReceiveDesktopPane implements AutoCloseable {
     }
 
     private void clearResult(String title) {
+        clipboard.clearIfOwned();
         closeLatestResult();
         latestTextPreview = null;
         resultTitle.setText(title);
@@ -426,13 +429,14 @@ final class ReceiveDesktopPane implements AutoCloseable {
         if (latestTextPreview == null) {
             return;
         }
-        ClipboardContent content = new ClipboardContent();
-        content.putString(latestTextPreview);
-        Clipboard.getSystemClipboard().setContent(content);
-        status.show(
-            "恢复后的明文已复制；使用后请覆盖系统剪贴板。",
-            false
-        );
+        if (clipboard.copy(latestTextPreview)) {
+            status.show(
+                "恢复后的明文已复制；若未被替换，将在 60 秒后自动清除。",
+                false
+            );
+        } else {
+            status.show("无法写入系统剪贴板。", true);
+        }
     }
 
     private void saveRecoveredPayload() {

@@ -5,12 +5,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+
+import com.windletter.protocol.ProtocolLimits;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class SendDesktopPanePayloadTest {
 
@@ -36,5 +41,23 @@ class SendDesktopPanePayloadTest {
         SendPayload filePayload = SendDesktopPane.loadPayload(file, null);
         assertArrayEquals(fileBytes, filePayload.data());
         assertFalse(filePayload.contentType().isBlank());
+    }
+
+    @Test
+    void shouldRejectAnOversizedFileBeforeReadingIt() throws Exception {
+        Path oversized = directory.resolve("oversized.bin");
+        try (SeekableByteChannel channel = Files.newByteChannel(
+            oversized,
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.WRITE
+        )) {
+            channel.position(ProtocolLimits.MAX_PAYLOAD_BYTES);
+            channel.write(java.nio.ByteBuffer.wrap(new byte[] {1}));
+        }
+
+        assertThrows(
+            java.io.IOException.class,
+            () -> SendDesktopPane.loadPayload(oversized, null)
+        );
     }
 }
