@@ -2,6 +2,7 @@ package com.windletter.desktop.ui;
 
 import com.windletter.desktop.receive.ReceiveAuthentication;
 import com.windletter.desktop.receive.ReceiveInput;
+import com.windletter.desktop.receive.ReceivePayloadFileName;
 import com.windletter.desktop.receive.ReceivePayloadPresentation;
 import com.windletter.desktop.receive.ReceivePayloadWriter;
 import com.windletter.desktop.receive.ReceiveResult;
@@ -441,10 +442,18 @@ final class ReceiveDesktopPane implements AutoCloseable {
         }
         FileChooser chooser = new FileChooser();
         chooser.setTitle("保存恢复后的原始 payload");
+        String extension = ReceivePayloadFileName.suggestedExtension(
+            result.contentType()
+        );
         chooser.setInitialFileName(
-            latestTextPreview == null
-                ? "recovered-payload.bin"
-                : "recovered-payload.txt"
+            ReceivePayloadFileName.suggestedName(result.contentType())
+        );
+        chooser.getExtensionFilters().addAll(
+            new FileChooser.ExtensionFilter(
+                "根据消息类型推断 (*." + extension + ")",
+                "*." + extension
+            ),
+            new FileChooser.ExtensionFilter("所有文件", "*.*")
         );
         java.io.File selected = chooser.showSaveDialog(stage);
         if (selected == null) {
