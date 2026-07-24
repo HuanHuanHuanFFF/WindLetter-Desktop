@@ -1,5 +1,9 @@
 # 風笺 · WindLetter Desktop
 
+風笺 · WindLetter 是一个基于 JavaFX 的 Windows 桌面应用，帮助普通用户生成和管理身份、管理联系人，并通过真实 WindLetter 核心安全发送、接收、解密和验签消息。
+
+本项目采用 [Apache License 2.0](LICENSE)。
+
 WindLetter 的 JavaFX 桌面客户端。阶段 1–4 已完成；当前可通过加密
 Vault 管理身份和联系人，并使用真实 WindLetter 核心完成完整发送、
 接收、解密和验签。
