@@ -20,7 +20,8 @@ Vault 管理身份和联系人，并使用真实 WindLetter 核心完成完整�
 核心库尚未发布为不可变 Maven 制品。本项目不复制核心源码或 JAR，而是校验相邻核心仓库的来源、完整提交、干净状态和 Maven 坐标，再运行核心全量测试并安装到项目隔离的本地 Maven 仓库：
 
 ```powershell
-.\scripts\prepare-core.ps1 -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+# 请先确保 JAVA_HOME 指向本机的 Java 17 JDK
+.\scripts\prepare-core.ps1 -JdkHome $env:JAVA_HOME
 ```
 
 校验失败时脚本会停止，不会使用漂移的 `SNAPSHOT`。
@@ -48,7 +49,7 @@ Vault 管理身份和联系人，并使用真实 WindLetter 核心完成完整�
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\build-windows-package.ps1 `
   -Type app-image `
-  -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+  -JdkHome $env:JAVA_HOME
 ```
 
 默认会重新核对并测试固定核心基线，再执行桌面端完整验证。开发期间核心
@@ -77,12 +78,12 @@ powershell -NoProfile -ExecutionPolicy Bypass `
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\build-windows-package.ps1 `
   -Type msi `
-  -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+  -JdkHome $env:JAVA_HOME
 
 powershell -NoProfile -ExecutionPolicy Bypass `
   -File .\scripts\build-windows-package.ps1 `
   -Type exe `
-  -JdkHome 'C:\Users\幻\.jdks\ms-17.0.16'
+  -JdkHome $env:JAVA_HOME
 ```
 
 制品分别输出到 `dist\msi` 和 `dist\exe`。MSI 全流程验证会拒绝覆盖已有
